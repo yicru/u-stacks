@@ -1,0 +1,12 @@
+.DS_Store
+/node_modules/
+
+# React Router
+/.react-router/
+/build/
+main.mjs
+
+types/server.d.ts
+
+.env*
+!.env.example
