@@ -1,4 +1,4 @@
-import { Link } from 'react-router'
+import { Code } from '@mantine/core'
 import { client } from 'server/client'
 import type { Route } from './+types/page'
 
@@ -20,16 +20,14 @@ export async function loader(_: Route.LoaderArgs) {
 
 export default function Index({ loaderData }: Route.ComponentProps) {
   return (
-    <div className="grid min-h-dvh place-content-center space-y-10">
-      <h1 className="font-bold text-4xl">Hono on React Router</h1>
-      <code className="rounded bg-zinc-900 p-4 text-white">
-        <p className="text-xs">Loader Data</p>
-        <p className="mt-1">{JSON.stringify(loaderData, null, 2)}</p>
-      </code>
-      <div className="flex justify-end">
-        <Link to="/tasks" className="text-blue-500 underline">
-          tasks page
-        </Link>
+    <div className="mx-auto w-full max-w-4xl p-10">
+      <h1 className="font-bold text-4xl">
+        <span className="mr-2">⚡</span>Sonic Stack
+      </h1>
+
+      <div className="mt-10">
+        <p className="mb-2 font-medium text-sm">Loader Data</p>
+        <Code block>{JSON.stringify(loaderData, null, 2)}</Code>
       </div>
     </div>
   )

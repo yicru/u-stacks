@@ -1,4 +1,12 @@
 import {
+  ColorSchemeScript,
+  DEFAULT_THEME,
+  MantineProvider,
+  createTheme,
+  mantineHtmlProps,
+  mergeMantineTheme,
+} from '@mantine/core'
+import {
   Links,
   Meta,
   Outlet,
@@ -6,9 +14,18 @@ import {
   ScrollRestoration,
   isRouteErrorResponse,
 } from 'react-router'
-
+import { breakpoints, colors } from '../lib/theme'
 import type { Route } from './+types/root'
 import stylesheet from './app.css?url'
+
+const theme = mergeMantineTheme(
+  DEFAULT_THEME,
+  createTheme({
+    fontFamily: 'Inter, Noto Sans JP, sans-serif',
+    breakpoints,
+    colors,
+  }),
+)
 
 export const links: Route.LinksFunction = () => [
   { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
@@ -16,6 +33,10 @@ export const links: Route.LinksFunction = () => [
     rel: 'preconnect',
     href: 'https://fonts.gstatic.com',
     crossOrigin: 'anonymous',
+  },
+  {
+    href: 'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap',
+    rel: 'stylesheet',
   },
   {
     rel: 'stylesheet',
@@ -26,15 +47,16 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja" suppressHydrationWarning>
+    <html lang="ja" {...mantineHtmlProps}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <ColorSchemeScript />
         <Meta />
         <Links />
       </head>
       <body suppressHydrationWarning>
-        {children}
+        <MantineProvider theme={theme}>{children}</MantineProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

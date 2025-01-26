@@ -1,6 +1,10 @@
+import tailwindPresetMantine from 'tailwind-preset-mantine'
 import type { Config } from 'tailwindcss'
+import defaultTheme from 'tailwindcss/defaultTheme'
+import { breakpoints, colors } from './lib/theme'
 
 export default {
+  darkMode: 'class',
   content: [
     './app/**/{**,.client,.server}/**/*.{js,jsx,ts,tsx}',
     './features/**/*.{js,jsx,ts,tsx}',
@@ -10,18 +14,15 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: [
-          '"Inter"',
-          'ui-sans-serif',
-          'system-ui',
-          'sans-serif',
-          '"Apple Color Emoji"',
-          '"Segoe UI Emoji"',
-          '"Segoe UI Symbol"',
-          '"Noto Color Emoji"',
-        ],
+        sans: ['"Inter"', '"Noto Sans JP"', ...defaultTheme.fontFamily.sans],
       },
     },
   },
+  presets: [
+    tailwindPresetMantine({
+      mantineBreakpoints: breakpoints,
+      mantineColors: colors,
+    }),
+  ],
   plugins: [],
 } satisfies Config
