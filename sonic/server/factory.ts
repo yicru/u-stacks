@@ -2,7 +2,6 @@ import { clerkMiddleware, getAuth } from '@hono/clerk-auth'
 import { PrismaClient, type User } from '@prisma/client'
 import { Hono } from 'hono'
 import { serverEnv } from 'lib/env.server'
-import { clientEnv } from '../lib/env'
 
 export type AppEnv = {
   Variables: {
@@ -18,7 +17,7 @@ export const createApp = () => {
     '*',
     clerkMiddleware({
       secretKey: serverEnv.CLERK_SECRET_KEY,
-      publishableKey: clientEnv.VITE_CLERK_PUBLISHABLE_KEY,
+      publishableKey: serverEnv.VITE_CLERK_PUBLISHABLE_KEY,
     }),
   )
 
