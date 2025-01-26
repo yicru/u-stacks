@@ -6,7 +6,17 @@ const app = createApp()
 
 export const taskRoute = app
   .get('/', async (c) => {
-    const tasks = await c.var.db.task.findMany()
+    const authUser = c.get('authUser')
+
+    if (!authUser) {
+      return c.json({ tasks: [] })
+    }
+
+    const tasks = await c.var.db.task.findMany({
+      where: {
+        userId: authUser.id,
+      },
+    })
     return c.json({ tasks })
   })
   .post(
@@ -18,10 +28,17 @@ export const taskRoute = app
       }),
     ),
     async (c) => {
+      const authUser = c.get('authUser')
+
+      if (!authUser) {
+        throw new Error('Unauthorized')
+      }
+
       const json = await c.req.valid('json')
 
       const task = await c.var.db.task.create({
         data: {
+          userId: authUser.id,
           title: json.title,
         },
       })

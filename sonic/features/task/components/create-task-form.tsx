@@ -1,40 +1,51 @@
-import { type FormEvent, useState } from 'react'
+import { useAuth } from '@clerk/react-router'
+import { Button, TextInput } from '@mantine/core'
+import { useForm, zodResolver } from '@mantine/form'
 import { useRevalidator } from 'react-router'
-import { client } from '../../../server/client'
+import { z } from 'zod'
+import { createClient } from '../../../server/client'
+
+const schema = z.object({
+  title: z.string(),
+})
+
+type FormValues = z.infer<typeof schema>
 
 export function CreateTaskForm() {
-  const [value, setValue] = useState('')
+  const { getToken } = useAuth()
   const revalidator = useRevalidator()
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const form = useForm<FormValues>({
+    initialValues: {
+      title: '',
+    },
+    validate: zodResolver(schema),
+  })
 
+  const handleSubmit = async (values: FormValues) => {
+    const client = createClient({ token: await getToken() })
     await client.api.tasks.$post({
       json: {
-        title: value,
+        title: values.title,
       },
     })
 
     alert('created')
-    setValue('')
+    form.reset()
     await revalidator.revalidate()
   }
 
   return (
-    <form className="flex items-center gap-2" onSubmit={handleSubmit}>
-      <input
-        value={value}
-        id="title"
-        type="text"
-        className="h-9 flex-1 rounded border border-neutral-300 px-3 py-2 shadow-sm"
-        onChange={(e) => setValue(e.target.value)}
+    <form
+      className="flex items-center gap-2"
+      onSubmit={form.onSubmit(handleSubmit)}
+    >
+      <TextInput
+        key={form.key('title')}
+        className="flex-1"
+        {...form.getInputProps('title')}
       />
-      <button
-        type="submit"
-        className="h-9 rounded bg-black px-4 text-sm text-white"
-      >
-        Submit
-      </button>
+      <Button type="submit">Submit</Button>
     </form>
   )
 }

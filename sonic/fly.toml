@@ -11,6 +11,7 @@ primary_region = 'nrt'
 
   [build.args]
     VITE_API_URL = 'https://sonic-stack.fly.dev'
+    VITE_CLERK_PUBLISHABLE_KEY = 'pk_test_dGhvcm91Z2gtYm9hLTM2LmNsZXJrLmFjY291bnRzLmRldiQ'
 
 [deploy]
   release_command = 'npm run db:push'

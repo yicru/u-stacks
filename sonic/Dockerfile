@@ -19,6 +19,7 @@ RUN apt-get update -qq && \
 FROM base AS build
 
 ARG VITE_API_URL
+ARG VITE_CLERK_PUBLISHABLE_KEY
 
 # Install packages needed to build node modules
 RUN apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
