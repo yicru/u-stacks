@@ -1,0 +1,29 @@
+# fly.toml app configuration file generated for sonic-stack on 2025-01-26T12:51:27+09:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'sonic-stack'
+primary_region = 'nrt'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+  [build.args]
+    VITE_API_URL = 'https://sonic-stack.fly.dev'
+
+[deploy]
+  release_command = 'npm run db:push'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

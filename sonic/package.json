@@ -1,5 +1,5 @@
 {
-  "name": "hono-on-react-router",
+  "name": "sonic-stack",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,12 +7,15 @@
     "dev:react-router": "react-router dev",
     "dev:tsup": "tsup --watch",
     "db:push": "prisma db push",
-    "build": "tsup && react-router build",
-    "start": "react-router-serve ./build/server/index.js",
+    "build": "tsup && react-router build && npm run build:server",
+    "build:server": "esbuild main.ts --bundle --outfile=main.mjs --platform=node --target=node16.8 --format=esm --banner:js='import { createRequire } from \"module\"; import url from \"url\"; const require = createRequire(import.meta.url); const __filename = url.fileURLToPath(import.meta.url); const __dirname = url.fileURLToPath(new URL(\".\", import.meta.url));'",
+    "start": "node main.mjs",
     "typecheck": "react-router typegen && tsc",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "format:force": "biome check --write --unsafe ."
+    "format:force": "biome check --write --unsafe .",
+    "deploy": "fly deploy",
+    "deploy:db": "fly deploy . --image flyio/postgres-flex:16.4 --config fly.db.toml"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.4.2",
