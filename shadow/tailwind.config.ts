@@ -1,3 +1,4 @@
+import tailwindPresetMantine from 'tailwind-preset-mantine'
 import type { Config } from 'tailwindcss'
 
 export default {
@@ -15,4 +16,5 @@ export default {
     },
   },
   plugins: [],
+  presets: [tailwindPresetMantine()],
 } satisfies Config
