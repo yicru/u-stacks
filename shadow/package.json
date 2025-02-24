@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "format:force": "biome check --write --unsafe ."
+    "format:force": "biome check --write --unsafe .",
+    "deploy": "fly deploy",
+    "deploy:db": "fly deploy . --image flyio/postgres-flex:16.4 --config fly.db.toml"
   },
   "dependencies": {
     "next": "15.1.6",
@@ -17,6 +19,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "@flydotio/dockerfile": "^0.7.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
