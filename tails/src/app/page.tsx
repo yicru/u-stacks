@@ -17,7 +17,7 @@ export default function Home() {
   const { data, refetch } = useSuspenseQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
-      if (!session) return null
+      if (!session.data) return null
 
       const startTime = performance.now()
       const response = await parseResponse(apiClient.api.tasks.$get())

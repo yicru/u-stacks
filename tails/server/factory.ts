@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@server/generated/prisma'
+import type { PrismaClient } from '@server/generated/prisma/client'
 import type { auth } from '@server/lib/auth'
 import { requireAuth } from '@server/lib/auth-utils'
 import prisma from '@server/lib/prisma'
