@@ -17,7 +17,7 @@ export const tasks = sqliteTable('tasks', {
     .notNull()
     .primaryKey()
     .$defaultFn(() => nanoid(6)),
-  userId: text('userId')
+  userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
