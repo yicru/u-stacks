@@ -10,6 +10,26 @@ U Stacks is a collection of modern full-stack starter templates. The repository 
 2. **Sonic Stack** (`/sonic`) - React Router v7 + Mantine + Clerk + Fly.io  
 3. **Hono on React Router** (`/hono-on-react-router`) - React Router v7 + Hono + Prisma
 
+## Environment Setup
+
+Each stack requires environment variables. Copy `.env.example` to `.env` in the respective stack directory:
+
+**Tails Stack**:
+- `TURSO_CONNECTION_URL` - Turso database connection URL
+- `TURSO_AUTH_TOKEN` - Turso authentication token
+- `BETTER_AUTH_SECRET` - Secret key for Better Auth
+- `NEXT_PUBLIC_APP_URL` - Application URL (default: http://localhost:3000)
+
+**Sonic Stack**:
+- `DATABASE_URL` - PostgreSQL connection string
+- `CLERK_SECRET_KEY` - Clerk backend API key
+- `VITE_CLERK_PUBLISHABLE_KEY` - Clerk frontend API key
+- `VITE_API_URL` - API endpoint URL (default: http://localhost:5173)
+
+**Hono on React Router**:
+- `DATABASE_URL` - PostgreSQL connection string
+- `VITE_API_URL` - API endpoint URL (default: http://localhost:5173)
+
 ## Common Development Commands
 
 All stacks use Biome for formatting/linting and npm for package management:
@@ -23,12 +43,35 @@ npm run typecheck  # Type check TypeScript
 ```
 
 ### Database Commands
-- Tails: `npm run db:migrate` (Drizzle push to apply schema changes)
-- Sonic/Hono: `npm run db:push`
+
+**Tails Stack**:
+- `npm run db:migrate` - Push schema changes to Turso database using Drizzle Kit
+- `npm run better-auth:generate` - Generate Better Auth database schema
+
+**Sonic/Hono Stacks**:
+- `npm run db:push` - Push Prisma schema changes to database without migration history
 
 ### Stack-Specific Commands
-- Tails: `npm run deploy` (Cloudflare), `npm run better-auth:generate`
-- Sonic: `npm run deploy` (Fly.io), `npm run deploy:db`
+
+**Tails Stack** (Cloudflare deployment):
+- `npm run deploy` - Build and deploy to Cloudflare Pages
+- `npm run preview` - Build and preview deployment locally
+- `npm run cf-typegen` - Generate TypeScript types for Cloudflare environment
+
+**Sonic Stack** (Fly.io deployment):
+- `npm run deploy` - Deploy application to Fly.io (requires fly CLI)
+- `npm run deploy:db` - Deploy PostgreSQL database to Fly.io
+
+## Database Setup
+
+**Tails Stack**: Uses Turso (libSQL) - a SQLite-compatible edge database
+- Create a Turso database: `turso db create <database-name>`
+- Get connection URL: `turso db show <database-name> --url`
+- Get auth token: `turso db tokens create <database-name>`
+
+**Sonic/Hono Stacks**: Use PostgreSQL
+- Local: Run PostgreSQL via Docker or install locally
+- Production: Sonic uses Fly.io PostgreSQL, Hono can use any PostgreSQL provider
 
 ## Architecture
 
@@ -72,9 +115,41 @@ Biome configuration (all stacks):
 ## Testing and Verification
 
 Before completing any task, always run:
-1. `npm run format`
-2. `npm run lint` 
-3. `npm run typecheck`
-4. `npm run build`
+1. `npm run format` - Apply Biome formatting
+2. `npm run lint` - Check for linting errors
+3. `npm run typecheck` - Verify TypeScript types
+4. `npm run build` - Ensure production build succeeds
 
-Ensure the development server runs without errors and check the browser console.
+Ensure the development server runs without errors and check the browser console for any runtime issues.
+
+**Note**: Test frameworks are not configured in these starters. Add your preferred testing solution (Vitest, Jest, etc.) as needed.
+
+## Deployment Prerequisites
+
+**Tails Stack** (Cloudflare):
+- Cloudflare account with Pages enabled
+- Wrangler CLI installed globally: `npm install -g wrangler`
+- Configure wrangler.toml for your project
+
+**Sonic Stack** (Fly.io):
+- Fly.io account and CLI: `curl -L https://fly.io/install.sh | sh`
+- Initialize Fly app: `fly launch` (only needed once)
+- PostgreSQL database created via `npm run deploy:db`
+
+**Hono on React Router**:
+- Can be deployed to any Node.js hosting provider
+- Uses standard React Router serve for production
+
+## Key Architectural Decisions
+
+**When to use each stack**:
+
+- **Tails Stack**: Best for edge-first applications, serverless deployment, and when you need built-in authentication with minimal setup. Uses React Server Components for optimal performance.
+
+- **Sonic Stack**: Ideal for traditional full-stack applications with PostgreSQL, enterprise authentication (Clerk), and when you need a complete UI component library (Mantine).
+
+- **Hono on React Router**: Choose this for maximum flexibility and minimal dependencies. Best when you want to implement custom authentication and UI components.
+
+**API Design Patterns**:
+- Tails: Uses Next.js App Router API routes (`/src/app/api`)
+- Sonic/Hono: Uses Hono server with type-safe RPC pattern via hono-react-router-adapter
