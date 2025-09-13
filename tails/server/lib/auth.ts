@@ -10,3 +10,8 @@ export const auth = betterAuth({
     enabled: true,
   },
 })
+
+export type AuthType = {
+  user: typeof auth.$Infer.Session.user | null
+  session: typeof auth.$Infer.Session.session | null
+}

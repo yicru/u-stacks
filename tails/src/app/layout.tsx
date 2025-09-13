@@ -1,15 +1,21 @@
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+import type { Metadata } from 'next'
+import { Inter, Noto_Sans_JP } from 'next/font/google'
+import { TanStackQueryProvider } from '@/providers/tanstack-query-provider'
+
+const inter = Inter({
   subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
 })
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+const notoSansJP = Noto_Sans_JP({
+  weight: ['100', '300', '400', '500', '700', '900'],
   subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-noto-sans-jp',
+  preload: false,
 })
 
 export const metadata: Metadata = {
@@ -23,11 +29,9 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+    <html lang="ja">
+      <body className={`${inter.variable} ${notoSansJP.variable} font-sans`}>
+        <TanStackQueryProvider>{children}</TanStackQueryProvider>
       </body>
     </html>
   )
