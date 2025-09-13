@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 U Stacks is a collection of modern full-stack starter templates. The repository contains three different stack options, each in its own directory:
 
-1. **Tails Stack** (`/tails`) - Next.js 15 + Radix UI + Better Auth + Cloudflare
+1. **Tails Stack** (`/tails`) - Next.js 15 + Radix UI + Better Auth + Drizzle + Cloudflare
 2. **Sonic Stack** (`/sonic`) - React Router v7 + Mantine + Clerk + Fly.io  
 3. **Hono on React Router** (`/hono-on-react-router`) - React Router v7 + Hono + Prisma
 
@@ -23,7 +23,7 @@ npm run typecheck  # Type check TypeScript
 ```
 
 ### Database Commands
-- Tails: `npm run db:migrate` then `npm run db:generate`
+- Tails: `npm run db:migrate` (Drizzle push to apply schema changes)
 - Sonic/Hono: `npm run db:push`
 
 ### Stack-Specific Commands
@@ -33,9 +33,10 @@ npm run typecheck  # Type check TypeScript
 ## Architecture
 
 ### Common Patterns
-- All stacks use TypeScript, React 19, and Prisma ORM
+- All stacks use TypeScript and React 19
+- Tails uses Drizzle ORM, others use Prisma ORM
 - Server code lives in `/server` directories
-- Database schemas in `/prisma` directories
+- Database schemas in `/prisma` directories (except Tails which uses `/server/db`)
 - API routes use either Hono or Next.js App Router
 
 ### Stack-Specific Architecture
@@ -44,6 +45,8 @@ npm run typecheck  # Type check TypeScript
 - Next.js 15 App Router with React Server Components
 - `/src/app` for routes, `/src/components/ui` for shadcn/ui components
 - Better Auth integration in `/server/lib/auth.ts`
+- Drizzle ORM with hand-written schemas in `/server/db/schema.ts`
+- Database connection in `/server/lib/drizzle.ts`
 - Deployed to Cloudflare Pages via OpenNext
 
 **Sonic Stack**:

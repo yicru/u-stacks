@@ -1,31 +1,33 @@
 import { zValidator } from '@hono/zod-validator'
+import { tasks } from '@server/db/schema'
 import { createApp } from '@server/factory'
 import { successResponse } from '@server/lib/api-helpers'
-import prisma from '@server/lib/prisma'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 export const taskApp = createApp()
   .get('/', async (c) => {
     const auth = await c.var.requireAuth()
 
-    const tasks = await prisma.task.findMany({
-      where: {
-        userId: auth.user.id,
-      },
-    })
+    const result = await c.var.db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.userId, auth.user.id))
 
-    return successResponse(c, { tasks })
+    return successResponse(c, { tasks: result })
   })
   .post('/', zValidator('json', z.object({ title: z.string() })), async (c) => {
     const auth = await c.var.requireAuth()
     const input = c.req.valid('json')
 
-    const task = await prisma.task.create({
-      data: {
+    const [task] = await c.var.db
+      .insert(tasks)
+      .values({
         userId: auth.user.id,
         title: input.title,
-      },
-    })
+        updatedAt: new Date(),
+      })
+      .returning()
 
     return successResponse(c, { task })
   })
@@ -36,12 +38,10 @@ export const taskApp = createApp()
       const auth = await c.var.requireAuth()
       const param = c.req.valid('param')
 
-      const task = await prisma.task.delete({
-        where: {
-          id: param.id,
-          userId: auth.user.id,
-        },
-      })
+      const [task] = await c.var.db
+        .delete(tasks)
+        .where(and(eq(tasks.id, param.id), eq(tasks.userId, auth.user.id)))
+        .returning()
 
       return successResponse(c, { task })
     },
