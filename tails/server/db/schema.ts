@@ -1,8 +1,18 @@
 import { users } from '@server/db/auth-schema'
 import { nanoid } from '@server/lib/id'
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-export const tasks = pgTable('tasks', {
+const timestamps = {
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .$onUpdate(() => new Date()),
+}
+
+export const tasks = sqliteTable('tasks', {
   id: text('id')
     .notNull()
     .primaryKey()
@@ -11,8 +21,5 @@ export const tasks = pgTable('tasks', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
-  createdAt: timestamp('createdAt', { precision: 3 }).notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt', { precision: 3 })
-    .notNull()
-    .$onUpdate(() => new Date()),
+  ...timestamps,
 })
