@@ -10,10 +10,13 @@
     "format": "biome check --write .",
     "format:force": "biome check --write --unsafe .",
     "typecheck": "tsc --noEmit",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:staging": "dotenvx run -f .env.staging -- opennextjs-cloudflare build && opennextjs-cloudflare deploy --env=staging --keep-vars",
+    "deploy:production": "dotenvx run -f .env.production -- opennextjs-cloudflare build && opennextjs-cloudflare deploy --env=production --keep-vars",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
-    "db:migrate": "drizzle-kit push",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts --env staging",
+    "db:migrate": "dotenvx run -- drizzle-kit push",
+    "db:migrate:staging": "dotenvx run -f .env.staging -- drizzle-kit push",
+    "db:migrate:production": "dotenvx run -f .env.production -- drizzle-kit push",
     "better-auth:generate": "npx @better-auth/cli generate --config server/lib/auth.ts --output server/db/auth-schema.ts"
   },
   "dependencies": {
@@ -54,7 +57,6 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
-    "dotenv": "^17.2.2",
     "drizzle-orm": "^0.44.5",
     "embla-carousel-react": "^8.6.0",
     "hono": "^4.9.0",
@@ -78,6 +80,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.1.4",
+    "@dotenvx/dotenvx": "^1.49.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.2.1",
     "@types/react": "^19",
