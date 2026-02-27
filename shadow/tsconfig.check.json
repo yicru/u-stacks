@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["src/components/ui", "src/routeTree.gen.ts"]
+}

@@ -1,8 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-02-27
-**Commit:** ce692b3
-**Branch:** main
+**Generated:** 2026-03-01
+**Commit:** 8d998f4
+**Branch:** feature/shadow
 
 ## OVERVIEW
 
@@ -12,8 +12,9 @@ Multi-stack starter template collection. Each stack is independent (`npx degit y
 
 ```
 u-stacks/
-├── tails/                  # Next.js 15 + Radix/shadcn + Better Auth + Drizzle + Cloudflare
+├── tails/                  # Next.js 15 + Radix/shadcn + Better Auth + Drizzle + Cloudflare Pages
 ├── sonic/                  # React Router v7 + Mantine + Clerk + Fly.io
+├── shadow/                 # TanStack Start + shadcn(Base UI) + Drizzle + Cloudflare Workers
 ├── hono-on-react-router/   # React Router v7 + Hono + Prisma (minimal)
 ├── .github/workflows/      # CI/CD (Sonic deploy only)
 └── CLAUDE.md               # LLM guidance
@@ -23,7 +24,8 @@ u-stacks/
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Edge-first app | `tails/` | Cloudflare Pages + Turso + Better Auth |
+| Edge-first app (Next.js) | `tails/` | Cloudflare Pages + Turso + Better Auth |
+| Edge-first app (TanStack) | `shadow/` | Cloudflare Workers + Turso + bun |
 | Traditional fullstack | `sonic/` | Fly.io + PostgreSQL + Clerk + Mantine |
 | Custom/minimal app | `hono-on-react-router/` | No auth/UI lib — bring your own |
 | Add new stack | Root directory | Copy `hono-on-react-router/` as minimal template |
@@ -36,7 +38,7 @@ u-stacks/
 - Hono framework for all API routes
 - `server/index.ts` → app definition with route mounting on `/api` base path
 - `server/factory.ts` → Hono instance creation with middleware injection
-- `server/routes/*.ts` → domain route handlers
+- `server/routes/*.ts` → domain route handlers (shadow uses `server/modules/` MVC pattern instead)
 - Type-safe RPC via `hc<AppType>` (Hono client)
 
 ### Client Layer
@@ -44,38 +46,68 @@ u-stacks/
 - React 19 + TypeScript strict mode
 - `features/` directory for domain logic (task CRUD as example)
 - TanStack Query for server state (tails, sonic)
-- Tailwind CSS with Biome-enforced sorted classes
+- Tailwind CSS v4 (tails, shadow) / v3 (sonic, hono)
 
 ### Tooling
 
-- Biome for lint + format (2-space, 80 char, single quotes, ASI)
-- No test framework — add Vitest/Jest as needed
-- Each stack has own `package.json`, `biome.json`, `tsconfig.json`
+- Lint/format: Biome (tails, sonic, hono) / oxlint + oxfmt (shadow)
+- No test framework except shadow (Vitest + Testing Library)
+- Each stack has own `package.json`, config files, `tsconfig.json`
+
+## STACK COMPARISON
+
+| | tails | sonic | shadow | hono-on-react-router |
+|---|---|---|---|---|
+| Framework | Next.js 15 | React Router v7 | TanStack Start | React Router v7 |
+| UI | shadcn/ui (Radix) | Mantine | shadcn/ui (Base UI) | Tailwind only |
+| Auth | Better Auth | Clerk | None | None |
+| ORM | Drizzle (Turso) | Prisma (PostgreSQL) | Drizzle (Turso) | Prisma (PostgreSQL) |
+| Deploy | Cloudflare Pages | Fly.io | Cloudflare Workers | Any Node.js host |
+| Pkg manager | npm | npm | **bun** | npm |
+| Lint | Biome 2.1.4 | Biome 1.9.4 | oxlint + oxfmt | Biome 1.9.4 |
+| Path alias | `@/*` `@server/*` | `~/*` | `@/*` `@server/*` | `~/*` |
+| Test | None | None | Vitest | None |
 
 ## CONVENTIONS
 
-- Path aliases differ: tails `@/*` + `@server/*` vs sonic/hono `~/*`
+- Path aliases differ: tails/shadow `@/*` + `@server/*` vs sonic/hono `~/*`
+- Lint tool split: Biome (tails/sonic/hono) vs oxlint+oxfmt (shadow)
 - Biome version mismatch: tails=2.1.4, sonic/hono=1.9.4
 - No shared code between stacks — consumed independently via `degit`
-- ORM split: tails=Drizzle (Turso/libSQL), sonic/hono=Prisma (PostgreSQL)
+- ORM split: tails/shadow=Drizzle (Turso/libSQL), sonic/hono=Prisma (PostgreSQL)
+- shadow uses `bun` exclusively — never `npm`
 
 ## ANTI-PATTERNS
 
 - Do NOT add root-level dependencies — stacks are independent
 - Do NOT share code between stacks — they are `degit` templates
 - No `as any`, `@ts-ignore`, `@ts-expect-error` (clean codebase, keep it that way)
-- `tails/cloudflare-env.d.ts` is auto-generated — do not edit
-- `tails/server/db/auth-schema.ts` is Better Auth generated — do not edit
+- No comments in code
+- Auto-generated files — do not edit:
+  - `tails/cloudflare-env.d.ts` (Wrangler)
+  - `tails/server/db/auth-schema.ts` (Better Auth)
+  - `shadow/worker-configuration.d.ts` (Wrangler)
+  - `shadow/src/routeTree.gen.ts` (TanStack Router)
+- shadow: `@libsql/client` pinned to `0.15.15` — do NOT upgrade (cross-fetch workerd issue)
+- shadow: Do NOT import `server/` from `src/` directly — use apiClient (`hc<AppType>`)
 
 ## COMMANDS
 
 ```bash
-# Per-stack (cd into stack directory first)
+# tails / sonic / hono-on-react-router (npm)
 npm run dev        # Dev server
 npm run build      # Production build
 npm run lint       # Biome check
 npm run format     # Biome fix
 npm run typecheck  # tsc --noEmit
+
+# shadow (bun)
+bun run dev        # Dev server
+bun run build      # Production build
+bun run lint       # typecheck + oxlint + oxfmt
+bun run format     # oxlint --fix + oxfmt
+bun run test       # Vitest
+bun run generate:module  # scaffdog module CRUD generation
 ```
 
 ## NOTES
@@ -83,4 +115,6 @@ npm run typecheck  # tsc --noEmit
 - Stacks are NOT a monorepo workspace — no root package.json
 - Only Sonic has GitHub Actions CI (`deploy-sonic.yml` → Fly.io)
 - Tails deploys via OpenNext to Cloudflare Pages (`npm run deploy:production`)
+- Shadow deploys via Wrangler to Cloudflare Workers (`bun run deploy`)
 - Hono stack has Dockerfile but no platform-specific deploy config
+- shadow has unique MVC module pattern (`server/modules/{name}/` with index/service/model)

@@ -2,6 +2,14 @@
 
 ## How to use
 
+### Shadow Stack
+
+```shell
+npx degit yicru/u-stacks/shadow my-app
+cd my-app
+bun scripts/setup.ts
+```
+
 ### Tails Stack
 
 ```shell

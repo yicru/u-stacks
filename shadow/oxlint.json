@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/crates/oxc_linter/src/config/schema.json",
+  "ignorePatterns": [
+    "src/components/ui",
+    "node_modules",
+    ".wrangler",
+    "dist",
+    ".tanstack"
+  ]
+}
