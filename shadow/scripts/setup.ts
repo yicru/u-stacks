@@ -2,7 +2,16 @@ import { readFileSync, writeFileSync, unlinkSync, rmdirSync } from 'node:fs'
 import { basename, resolve, join } from 'node:path'
 
 const ROOT = resolve(import.meta.dirname, '..')
-const APP_NAME = basename(ROOT)
+const dirName = basename(ROOT)
+const APP_NAME =
+  process.argv[2] ??
+  (dirName !== 'shadow' ? dirName : null) ??
+  prompt('Enter your app name:')
+
+if (!APP_NAME) {
+  console.error('App name is required.')
+  process.exit(1)
+}
 
 const jsonTargets = ['package.json', 'wrangler.jsonc', '.cta.json']
 const codeTargets = ['src/routes/__root.tsx']
