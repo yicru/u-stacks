@@ -60,6 +60,10 @@ shadow/
 - DB instance: `import { db } from '@server/db'` — モジュールトップレベルで import
 - SPA mode: ルート単位で `ssr: false` を設定し、apiClient 経由でデータ取得
 - `src/` 下から `server/` への直接 import は禁止。apiClient (`hc<AppType>`) 経由で通信
+- Data fetching via TanStack Router loaders + `router.invalidate()` for revalidation
+- Tailwind CSS v4 with oklch colors + `@custom-variant dark` in `styles.css`
+- Vitest configured (jsdom) but no test files yet — add `*.test.ts(x)` alongside source
+- `noUnusedLocals: true`, `noUnusedParameters: true`, `noUncheckedSideEffectImports: true` in tsconfig
 
 ## IMPORTANT CONSTRAINTS
 
@@ -124,3 +128,4 @@ bun run dev
 - `server/modules/` 内の各ファイルでトップレベルにヘルパー関数や変数を散在させない (スコープルール)
 - `@libsql/client` を `0.17.0` 以上に上げない (cross-fetch 問題)
 - `worker-configuration.d.ts` は `cf-typegen` で自動生成 — 手動編集しない
+- `src/routeTree.gen.ts` は TanStack Router が自動生成 — 手動編集しない

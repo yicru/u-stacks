@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-01
-**Commit:** 8d998f4
+**Commit:** 7b794ee
 **Branch:** feature/shadow
 
 ## OVERVIEW
@@ -15,9 +15,8 @@ u-stacks/
 ├── tails/                  # Next.js 15 + Radix/shadcn + Better Auth + Drizzle + Cloudflare Pages
 ├── sonic/                  # React Router v7 + Mantine + Clerk + Fly.io
 ├── shadow/                 # TanStack Start + shadcn(Base UI) + Drizzle + Cloudflare Workers
-├── hono-on-react-router/   # React Router v7 + Hono + Prisma (minimal)
 ├── .github/workflows/      # CI/CD (Sonic deploy only)
-└── CLAUDE.md               # LLM guidance
+└── AGENTS.md               # Per-stack knowledge bases
 ```
 
 ## WHERE TO LOOK
@@ -27,8 +26,6 @@ u-stacks/
 | Edge-first app (Next.js) | `tails/` | Cloudflare Pages + Turso + Better Auth |
 | Edge-first app (TanStack) | `shadow/` | Cloudflare Workers + Turso + bun |
 | Traditional fullstack | `sonic/` | Fly.io + PostgreSQL + Clerk + Mantine |
-| Custom/minimal app | `hono-on-react-router/` | No auth/UI lib — bring your own |
-| Add new stack | Root directory | Copy `hono-on-react-router/` as minimal template |
 | CI/CD | `.github/workflows/` | Only `deploy-sonic.yml` exists |
 
 ## SHARED PATTERNS (ALL STACKS)
@@ -45,36 +42,36 @@ u-stacks/
 
 - React 19 + TypeScript strict mode
 - `features/` directory for domain logic (task CRUD as example)
-- TanStack Query for server state (tails, sonic)
-- Tailwind CSS v4 (tails, shadow) / v3 (sonic, hono)
+- TanStack Query for server state (tails) / React Router loaders (sonic) / TanStack Router loaders (shadow)
+- Tailwind CSS v4 (tails, shadow) / v3 (sonic)
 
 ### Tooling
 
-- Lint/format: Biome (tails, sonic, hono) / oxlint + oxfmt (shadow)
+- Lint/format: Biome (tails, sonic) / oxlint + oxfmt (shadow)
 - No test framework except shadow (Vitest + Testing Library)
 - Each stack has own `package.json`, config files, `tsconfig.json`
 
 ## STACK COMPARISON
 
-| | tails | sonic | shadow | hono-on-react-router |
-|---|---|---|---|---|
-| Framework | Next.js 15 | React Router v7 | TanStack Start | React Router v7 |
-| UI | shadcn/ui (Radix) | Mantine | shadcn/ui (Base UI) | Tailwind only |
-| Auth | Better Auth | Clerk | None | None |
-| ORM | Drizzle (Turso) | Prisma (PostgreSQL) | Drizzle (Turso) | Prisma (PostgreSQL) |
-| Deploy | Cloudflare Pages | Fly.io | Cloudflare Workers | Any Node.js host |
-| Pkg manager | npm | npm | **bun** | npm |
-| Lint | Biome 2.1.4 | Biome 1.9.4 | oxlint + oxfmt | Biome 1.9.4 |
-| Path alias | `@/*` `@server/*` | `~/*` | `@/*` `@server/*` | `~/*` |
-| Test | None | None | Vitest | None |
+| | tails | sonic | shadow |
+|---|---|---|---|
+| Framework | Next.js 15 | React Router v7 | TanStack Start |
+| UI | shadcn/ui (Radix) | Mantine | shadcn/ui (Base UI) |
+| Auth | Better Auth | Clerk | None |
+| ORM | Drizzle (Turso) | Prisma (PostgreSQL) | Drizzle (Turso) |
+| Deploy | Cloudflare Pages | Fly.io | Cloudflare Workers |
+| Pkg manager | npm | npm | **bun** |
+| Lint | Biome 2.1.4 | Biome 1.9.4 | oxlint + oxfmt |
+| Path alias | `@/*` `@server/*` | `~/*` | `@/*` `@server/*` `#/*` |
+| Test | None | None | Vitest |
 
 ## CONVENTIONS
 
-- Path aliases differ: tails/shadow `@/*` + `@server/*` vs sonic/hono `~/*`
-- Lint tool split: Biome (tails/sonic/hono) vs oxlint+oxfmt (shadow)
-- Biome version mismatch: tails=2.1.4, sonic/hono=1.9.4
+- Path aliases differ: tails/shadow `@/*` + `@server/*` vs sonic `~/*` (shadow also has `#/*` subpath imports)
+- Lint tool split: Biome (tails/sonic) vs oxlint+oxfmt (shadow)
+- Biome version mismatch: tails=2.1.4, sonic=1.9.4
 - No shared code between stacks — consumed independently via `degit`
-- ORM split: tails/shadow=Drizzle (Turso/libSQL), sonic/hono=Prisma (PostgreSQL)
+- ORM split: tails/shadow=Drizzle (Turso/libSQL), sonic=Prisma (PostgreSQL)
 - shadow uses `bun` exclusively — never `npm`
 
 ## ANTI-PATTERNS
@@ -94,7 +91,7 @@ u-stacks/
 ## COMMANDS
 
 ```bash
-# tails / sonic / hono-on-react-router (npm)
+# tails / sonic (npm)
 npm run dev        # Dev server
 npm run build      # Production build
 npm run lint       # Biome check
@@ -116,5 +113,4 @@ bun run generate:module  # scaffdog module CRUD generation
 - Only Sonic has GitHub Actions CI (`deploy-sonic.yml` → Fly.io)
 - Tails deploys via OpenNext to Cloudflare Pages (`npm run deploy:production`)
 - Shadow deploys via Wrangler to Cloudflare Workers (`bun run deploy`)
-- Hono stack has Dockerfile but no platform-specific deploy config
 - shadow has unique MVC module pattern (`server/modules/{name}/` with index/service/model)

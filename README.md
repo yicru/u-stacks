@@ -21,9 +21,3 @@ npx degit yicru/u-stacks/tails my-app
 ```shell
 npx degit yicru/u-stacks/sonic my-app
 ```
-
-### Hono on React Router
-
-```shell
-npx degit yicru/u-stacks/hono-on-react-router my-app
-```

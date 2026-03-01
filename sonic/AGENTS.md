@@ -47,6 +47,11 @@ sonic/
 - Fly.io release command runs `npm run db:push` on every deploy
 - Mantine theme config in `lib/theme.ts`
 - Hono RPC client in `lib/api.ts` via `hc<AppType>`
+- Data fetching via React Router loaders (no TanStack Query)
+- Tailwind CSS v3 with Mantine layer integration in `app/app.css`
+- `lib/env.ts` + `lib/env.server.ts` — Zod-validated environment variables
+- Biome v1.9.4 — `noConsoleLog: warn`, `useImportType: off`
+- `verbatimModuleSyntax: true` in tsconfig
 
 ## COMMANDS
 
