@@ -3,8 +3,11 @@ import { basename, resolve, join } from 'node:path'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const dirName = basename(ROOT)
+const scriptIdx = process.argv.findIndex((a) => a.endsWith('setup.ts'))
+const cliName = process.argv[scriptIdx + 1]
+
 const APP_NAME =
-  process.argv[2] ??
+  cliName ??
   (dirName !== 'shadow' ? dirName : null) ??
   prompt('Enter your app name:')
 
