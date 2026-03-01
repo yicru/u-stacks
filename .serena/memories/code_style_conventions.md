@@ -1,32 +1,40 @@
 # Code Style and Conventions
 
-## Biome Configuration (All Stacks)
-- **Indent**: 2 spaces
-- **Line Width**: 80 characters
-- **Quotes**: Single quotes
-- **Semicolons**: As needed (ASI)
-- **Import Organization**: Automatic
-- **Sorted Classes**: Enabled for Tailwind (nursery rule)
+## Lint/Format Tools
+- **tails**: Biome 2.1.4
+- **sonic**: Biome 1.9.4
+- **shadow**: oxlint + oxfmt
 
-## File Structure
-- TypeScript throughout
+## General Style
+- TypeScript strict mode
+- No comments in code
+- Never use `any` type
+- No `as any`, `@ts-ignore`, `@ts-expect-error`
 - ES modules (`"type": "module"`)
-- Component files in appropriate feature directories
-- Server code in `/server` directory
-- Database schemas in `/prisma` directory
+- React 19 patterns
 
 ## Naming Conventions
 - React components: PascalCase
 - Files: kebab-case for routes, PascalCase for components
 - Variables/functions: camelCase
 
-## Ignored Files
-- `cloudflare-env.d.ts` (Tails)
-- `src/components/ui` (Tails - auto-generated shadcn/ui)
+## Path Aliases
+- tails/shadow: `@/*` + `@server/*`
+- shadow additional: `#/*` (subpath imports)
+- sonic: `~/*`
 
-## Best Practices
-- Use TypeScript strict mode
-- Validate with Zod schemas
-- Follow React 19 patterns
-- Use server components where applicable (Next.js/React Router)
-- Keep components small and focused
+## Server Layer Patterns
+- `server/index.ts` → Hono app definition with route mounting on `/api`
+- `server/factory.ts` → Hono instance creation with middleware
+- `server/routes/*.ts` → domain route handlers (tails, sonic)
+- `server/modules/{name}/` → MVC pattern (shadow only)
+- Type-safe RPC via `hc<AppType>` (Hono client)
+
+## Client Layer Patterns
+- `features/` directory for domain logic
+- TanStack Query (tails) / React Router loaders (sonic) / TanStack Router loaders (shadow)
+- Tailwind CSS v4 (tails, shadow) / v3 (sonic)
+
+## Test
+- Only shadow has tests: Vitest + Testing Library
+- tails and sonic have no test framework
