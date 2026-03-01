@@ -2,14 +2,10 @@ import { readFileSync, writeFileSync, unlinkSync, rmdirSync } from 'node:fs'
 import { basename, resolve, join } from 'node:path'
 
 const ROOT = resolve(import.meta.dirname, '..')
-const dirName = basename(ROOT)
 const scriptIdx = process.argv.findIndex((a) => a.endsWith('setup.ts'))
 const cliName = process.argv[scriptIdx + 1]
 
-const APP_NAME =
-  cliName ??
-  (dirName !== 'shadow' ? dirName : null) ??
-  prompt('Enter your app name:')
+const APP_NAME = cliName ?? prompt('Enter your app name:')
 
 if (!APP_NAME) {
   console.error('App name is required.')
