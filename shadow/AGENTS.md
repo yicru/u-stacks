@@ -64,7 +64,7 @@ shadow/
 - Tailwind CSS v4 with oklch colors + `@custom-variant dark` in `styles.css`
 - Vitest configured (jsdom) but no test files yet — add `*.test.ts(x)` alongside source
 - `noUnusedLocals: true`, `noUnusedParameters: true`, `noUncheckedSideEffectImports: true` in tsconfig
-- 日時表示は `src/lib/date.ts` の `formatDateTime()` (`date-fns`) を使う — `toLocaleDateString()` 等のネイティブ API は SSR 環境(UTC)で表示がズレるため禁止
+- 日時表示は `src/lib/date.ts` の `formatDateTime()` (`date-fns`) を使う — DB はUTC保存のため表示層でローカルTZに変換が必要
 
 ## IMPORTANT CONSTRAINTS
 
