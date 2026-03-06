@@ -64,6 +64,7 @@ shadow/
 - Tailwind CSS v4 with oklch colors + `@custom-variant dark` in `styles.css`
 - Vitest configured (jsdom) but no test files yet — add `*.test.ts(x)` alongside source
 - `noUnusedLocals: true`, `noUnusedParameters: true`, `noUncheckedSideEffectImports: true` in tsconfig
+- 日時表示は `src/lib/date.ts` の `formatDateTime()` (`date-fns`) を使う — `toLocaleDateString()` 等のネイティブ API は SSR 環境(UTC)で表示がズレるため禁止
 
 ## IMPORTANT CONSTRAINTS
 
@@ -129,3 +130,4 @@ bun run dev
 - `@libsql/client` を `0.17.0` 以上に上げない (cross-fetch 問題)
 - `worker-configuration.d.ts` は `cf-typegen` で自動生成 — 手動編集しない
 - `src/routeTree.gen.ts` は TanStack Router が自動生成 — 手動編集しない
+- 日時表示に `toLocaleDateString()` / `toLocaleTimeString()` を直接使わない (`src/lib/date.ts` 経由)

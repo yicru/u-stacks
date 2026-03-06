@@ -14,6 +14,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { cn } from '@/lib/utils'
+import { formatDateTime } from '@/lib/date'
 import { apiClient } from '@/lib/api-client'
 
 type TasksResponse = InferResponseType<typeof apiClient.api.tasks.$get>
@@ -116,7 +117,7 @@ export function TaskList({ tasks }: TaskListProps) {
             )}
           >
             {task.createdAt
-              ? new Date(task.createdAt).toLocaleDateString()
+              ? formatDateTime(task.createdAt)
               : '-'}
           </span>
           <Button
