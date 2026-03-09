@@ -1,5 +1,9 @@
 import { format } from 'date-fns'
+import { TZDate } from '@date-fns/tz'
+
+const TIME_ZONE = 'Asia/Tokyo'
 
 export function formatDateTime(date: string | Date): string {
-  return format(new Date(date), 'yyyy/MM/dd HH:mm')
+  const d = typeof date === 'string' ? new TZDate(date, TIME_ZONE) : new TZDate(date, TIME_ZONE)
+  return format(d, 'yyyy/MM/dd HH:mm')
 }
