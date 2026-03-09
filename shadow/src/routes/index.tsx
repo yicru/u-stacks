@@ -6,7 +6,6 @@ import { apiClient } from '@/lib/api-client'
 import { Separator } from '@/components/ui/separator'
 
 export const Route = createFileRoute('/')({
-  ssr: false,
   loader: async () => {
     const result = await parseResponse(apiClient.api.tasks.$get({ query: {} }))
     return result
