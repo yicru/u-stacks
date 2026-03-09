@@ -116,9 +116,7 @@ export function TaskList({ tasks }: TaskListProps) {
               task.done ? 'opacity-50' : 'opacity-100',
             )}
           >
-            {task.createdAt
-              ? formatDateTime(task.createdAt)
-              : '-'}
+            {task.createdAt ? formatDateTime(task.createdAt) : '-'}
           </span>
           <Button
             disabled={isPending}
