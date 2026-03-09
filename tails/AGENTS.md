@@ -37,6 +37,7 @@ tails/
 | Add feature | `src/features/<name>/` | Components + hooks per domain |
 | Env vars | `.env.example` | `TURSO_*`, `BETTER_AUTH_SECRET`, `NEXT_PUBLIC_APP_URL` |
 | Deploy | `npm run deploy:production` | OpenNext → Cloudflare Pages via dotenvx |
+| Server utils | `server/lib/` | errors.ts (5 error classes), auth.ts, auth-utils.ts, api-helpers.ts, id.ts (nanoid) |
 
 ## CONVENTIONS
 
@@ -51,6 +52,10 @@ tails/
 - `src/lib/api-client.ts` exports `apiClient` (Hono RPC) + `parseResponse` helper
 - `src/lib/auth-client.ts` exports Better Auth client (`useSession` hook)
 - `src/lib/env.ts` — Zod-validated environment variables
+- `server/lib/errors.ts` — HTTPException-based error classes: BadRequest, Unauthorized, Forbidden, NotFound, InternalServer
+- `server/lib/id.ts` — nanoid(14) with custom alphabet for ID generation
+- `server/lib/api-helpers.ts` — `logError()` (dev-only) + `createErrorResponse()` JSON helper
+- Deploy uses dotenvx for env-specific builds (`dotenvx run -f .env.production --`)
 
 ## COMMANDS
 

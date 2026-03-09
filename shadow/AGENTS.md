@@ -66,6 +66,8 @@ shadow/
 - Vitest configured (jsdom) but no test files yet — add `*.test.ts(x)` alongside source
 - `noUnusedLocals: true`, `noUnusedParameters: true`, `noUncheckedSideEffectImports: true` in tsconfig
 - 日時表示は `src/lib/date.ts` の `formatDateTime()` (`date-fns`) を使う — DB はUTC保存のため表示層でローカルTZに変換が必要
+- shadcn/ui (Base UI) has custom components beyond standard: combobox, input-group, button-group, empty, field, item, kbd, native-select, spinner
+- Form: field.tsx (react-hook-form non-dependent) instead of tails' form.tsx (RHF integrated)
 
 ## IMPORTANT CONSTRAINTS
 

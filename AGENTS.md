@@ -1,8 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-03-01
-**Commit:** 7b794ee
-**Branch:** feature/shadow
+**Generated:** 2026-03-09
+**Commit:** cebccf8
+**Branch:** main
 
 ## OVERVIEW
 
@@ -64,6 +64,9 @@ u-stacks/
 | Lint | Biome 2.1.4 | Biome 1.9.4 | oxlint + oxfmt |
 | Path alias | `@/*` `@server/*` | `~/*` | `@/*` `@server/*` `#/*` |
 | Test | None | None | Vitest |
+| Icon | lucide-react | N/A (Mantine) | @hugeicons/react |
+| Form | react-hook-form | mantine-form | field.tsx (RHF non-dependent) |
+| Env mgmt | dotenvx | .env | dotenvx |
 
 ## CONVENTIONS
 
@@ -73,6 +76,8 @@ u-stacks/
 - No shared code between stacks — consumed independently via `degit`
 - ORM split: tails/shadow=Drizzle (Turso/libSQL), sonic=Prisma (PostgreSQL)
 - shadow uses `bun` exclusively — never `npm`
+- dotenvx used for environment management in tails (`npm run deploy:*`) and shadow (`bun run deploy`)
+- Icon library split: tails=lucide-react, sonic=Mantine built-in, shadow=@hugeicons/react
 
 ## ANTI-PATTERNS
 
@@ -114,3 +119,5 @@ bun run generate:module  # scaffdog module CRUD generation
 - Tails deploys via OpenNext to Cloudflare Pages (`npm run deploy:production`)
 - Shadow deploys via Wrangler to Cloudflare Workers (`bun run deploy`)
 - shadow has unique MVC module pattern (`server/modules/{name}/` with index/service/model)
+- Shadow has `scripts/setup.ts` for template initialization (`bun run setup` replaces app name in package.json, wrangler.jsonc, .cta.json)
+- Shadow's shadcn/ui (Base UI) includes custom components not in standard shadcn: combobox, input-group, button-group, empty, field, item, kbd, native-select, spinner
