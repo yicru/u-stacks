@@ -33,8 +33,8 @@ shadow/
 ├── scripts/
 │   └── setup.ts                   # テンプレート初期化 (bun run setup)
 ├── .scaffdog/                     # scaffdog モジュール生成テンプレート
-├── vite.config.ts                 # Cloudflare Vite plugin + TanStack Start
-├── vitest.config.ts               # Vitest 設定 (Cloudflare plugin 除外)
+├── vite.config.ts                 # Vite+ (vite-plus) 統合設定 — Cloudflare + TanStack Start + lint/fmt
+├── vitest.config.ts               # Vitest 設定 (Cloudflare plugin 除外、分離維持)
 ├── wrangler.jsonc                 # Cloudflare Workers 設定
 └── drizzle.config.ts              # Drizzle Kit (Turso)
 ```
@@ -55,8 +55,9 @@ shadow/
 
 - Package manager: **bun** (`bun install`, `bun add`, `bun run`)
 - Path alias: `@/*` → `src/*`, `@server/*` → `server/*`, `#/*` → `src/*` (subpath imports)
-- Lint: oxlint (Rust 製)、Format: oxfmt (Prettier 互換、Tailwind クラスソート内蔵)
+- Toolchain: **Vite+** (`vite-plus`) — Vite 8 + oxlint + oxfmt を統合。`vp lint` / `vp fmt` で実行
 - Type check: `tsc -p tsconfig.check.json --noEmit`
+- Lint/Format 設定は `vite.config.ts` の `lint` / `fmt` セクションに統合 (個別の `.oxfmtrc.json` / `oxlint.json` は不要)
 - Icon: `@hugeicons/react` + `@hugeicons/core-free-icons`
 - DB instance: `import { db } from '@server/db'` — モジュールトップレベルで import
 - SSR: `src/start.ts` で `defaultSsr: false` を設定。全ルートはデフォルト SPA モードで動作し、apiClient 経由でデータ取得
@@ -107,9 +108,9 @@ Worker が自分自身に HTTP fetch を行い失敗する。`createIsomorphicFn
 bun run setup              # テンプレート初期化 (アプリ名をディレクトリ名に置換)
 bun run dev                # Dev server (port 3000)
 bun run build              # Production build
-bun run lint               # typecheck + oxlint + oxfmt
-bun run format             # oxlint --fix + oxfmt
-bun run test               # Vitest
+bun run lint               # typecheck + vp lint + vp fmt --check
+bun run format             # vp lint --fix + vp fmt
+bun run test               # Vitest (via vp test)
 bun run generate:module    # scaffdog でモジュール CRUD 生成
 bun run db:generate        # Drizzle Kit generate
 bun run db:migrate         # Drizzle Kit push (dev)
