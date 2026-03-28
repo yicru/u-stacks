@@ -1,191 +1,117 @@
-Welcome to your new TanStack Start app!
+# Shadow Stack
 
-# Getting Started
+A full-stack starter built with TanStack Start, Hono, Drizzle, Turso, and Cloudflare Workers.
 
-To run this application:
+Shadow is designed for building edge-first applications with a type-safe API layer, a modern React UI stack, and a setup flow that can bootstrap Turso interactively.
+
+## Features
+
+- TanStack Start with file-based routing
+- Hono API mounted under `/api`
+- Drizzle ORM with Turso / libSQL
+- Cloudflare Workers deployment via Wrangler
+- shadcn/ui on the Base UI registry
+- Tailwind CSS v4
+- Vitest + Testing Library
+- Interactive `bun run setup` for app rename and Turso configuration
+
+## Tech Stack
+
+| Layer         | Technology                        |
+| ------------- | --------------------------------- |
+| App framework | TanStack Start                    |
+| API           | Hono                              |
+| Database      | Turso + Drizzle ORM               |
+| Runtime       | Cloudflare Workers                |
+| UI            | React 19 + shadcn/ui (Base UI)    |
+| Styling       | Tailwind CSS v4                   |
+| Tooling       | Bun, Vite+, oxlint, oxfmt, Vitest |
+
+## Quick Start
 
 ```bash
+npx degit yicru/u-stacks/shadow my-app
+cd my-app
 bun install
-bun --bun run dev
+bun run setup
+bun run db:migrate
+bun run dev
 ```
 
-# Building For Production
+Open `http://localhost:3000` after the dev server starts.
 
-To build this application for production:
+## Setup Flow
+
+`bun run setup` updates the app name across the template and can also guide you through Turso setup.
+
+During setup you can:
+
+- rename the project
+- create a new Turso database or connect to an existing one
+- choose a Turso group from a detected list or enter one manually
+- write `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` into `.dev.vars`
+- optionally copy the same credentials into `.dev.vars.production`
+
+If you skip the Turso step, create `.dev.vars` yourself before running database commands or starting local development.
+
+Example `.dev.vars`:
 
 ```bash
-bun --bun run build
+TURSO_DATABASE_URL=libsql://your-db.turso.io
+TURSO_AUTH_TOKEN=your-auth-token
 ```
 
-## Testing
+## Available Commands
 
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
+| Command                   | Description                                            |
+| ------------------------- | ------------------------------------------------------ |
+| `bun run setup`           | Initialize the template and optionally configure Turso |
+| `bun run dev`             | Start the local dev server on port 3000                |
+| `bun run build`           | Build for production                                   |
+| `bun run preview`         | Build and preview the production output                |
+| `bun run test`            | Run tests with Vitest                                  |
+| `bun run lint`            | Run typecheck, lint, and format checks                 |
+| `bun run format`          | Apply lint fixes and formatting                        |
+| `bun run db:generate`     | Generate Drizzle migrations from schema changes        |
+| `bun run db:migrate`      | Push schema changes using `.dev.vars`                  |
+| `bun run db:migrate:prod` | Push schema changes using `.dev.vars.production`       |
+| `bun run db:studio`       | Open Drizzle Studio                                    |
+| `bun run generate:module` | Scaffold a new server module via Scaffdog              |
+| `bun run deploy`          | Build and deploy to Cloudflare Workers                 |
+| `bun run cf-typegen`      | Regenerate Wrangler environment types                  |
+
+## Project Structure
+
+```text
+shadow/
+├── src/
+│   ├── routes/          # TanStack Start routes
+│   ├── features/        # Feature UI modules
+│   ├── components/ui/   # shadcn/ui (Base UI)
+│   └── lib/             # Client utilities and API client
+├── server/
+│   ├── modules/         # Hono modules (controller/service/model)
+│   ├── db/              # Drizzle schema and database setup
+│   └── lib/             # Shared server utilities
+├── scripts/             # Template setup scripts
+├── drizzle.config.ts
+├── vitest.config.ts
+└── wrangler.jsonc
+```
+
+## Deployment
+
+Production deploys use `.dev.vars.production` via `dotenvx`:
 
 ```bash
-bun --bun run test
+bun run deploy
 ```
 
-## Styling
+Make sure production credentials are prepared before deploying or running `bun run db:migrate:prod`.
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+## Notes
 
-### Removing Tailwind CSS
-
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Uninstall the packages: `bun install @tailwindcss/vite tailwindcss -D`
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from '@tanstack/react-router'
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+- Package manager: `bun`
+- The project pins `@libsql/client` to `0.15.15` for Cloudflare Workers compatibility
+- `src/` must not import from `server/` directly; use the typed Hono client instead
+- `worker-configuration.d.ts` and `src/routeTree.gen.ts` are generated files

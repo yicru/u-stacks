@@ -18,7 +18,8 @@
     "db:migrate": "dotenvx run -f .dev.vars -- drizzle-kit push",
     "db:migrate:prod": "dotenvx run -f .dev.vars.production -- drizzle-kit push",
     "db:studio": "dotenvx run -f .dev.vars -- drizzle-kit studio",
-    "generate:module": "scaffdog generate module"
+    "generate:module": "scaffdog generate module",
+    "setup": "bun scripts/setup.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
