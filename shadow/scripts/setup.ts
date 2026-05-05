@@ -11,6 +11,21 @@ const README_PATH = join(ROOT, 'README.md')
 const DEV_VARS_PATH = join(ROOT, '.dev.vars')
 const DEV_VARS_PRODUCTION_PATH = join(ROOT, '.dev.vars.production')
 
+type PackageJson = {
+  name?: string
+  scripts?: Record<string, string>
+  portless?: PortlessConfig
+}
+
+type PortlessConfig =
+  | string
+  | {
+      name?: string
+      script?: string
+      appPort?: number
+      proxy?: boolean
+    }
+
 const args = process.argv.slice(2).filter((arg) => !arg.endsWith('setup.ts'))
 const cliName = args[0]?.trim()
 const defaultAppName = toKebabCase(basename(ROOT)) || 'shadow'
@@ -317,11 +332,12 @@ function updateEnvContent(
 function renameProject(nextAppName: string): void {
   const nextPackageJson = JSON.parse(
     readFileSync(PACKAGE_JSON_PATH, 'utf-8'),
-  ) as {
-    name?: string
-    scripts?: Record<string, string>
-  }
+  ) as PackageJson
   nextPackageJson.name = nextAppName
+  nextPackageJson.portless = updatePortlessName(
+    nextPackageJson.portless,
+    nextAppName,
+  )
   writeJson(PACKAGE_JSON_PATH, nextPackageJson)
 
   const nextCtaConfig = JSON.parse(readFileSync(CTA_CONFIG_PATH, 'utf-8')) as {
@@ -344,13 +360,32 @@ function renameProject(nextAppName: string): void {
 }
 
 function ensureSetupScript(): void {
-  const packageJson = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf-8')) as {
-    name?: string
-    scripts?: Record<string, string>
-  }
+  const packageJson = JSON.parse(
+    readFileSync(PACKAGE_JSON_PATH, 'utf-8'),
+  ) as PackageJson
   packageJson.scripts ??= {}
   packageJson.scripts.setup = 'bun scripts/setup.ts'
   writeJson(PACKAGE_JSON_PATH, packageJson)
+}
+
+function updatePortlessName(
+  currentConfig: PortlessConfig | undefined,
+  appName: string,
+): Exclude<PortlessConfig, string> {
+  if (!currentConfig || typeof currentConfig === 'string') {
+    return {
+      name: appName,
+    }
+  }
+
+  const nextConfig = {
+    ...currentConfig,
+    name: appName,
+  }
+
+  delete nextConfig.script
+
+  return nextConfig
 }
 
 function updateReadme(projectName: string): void {

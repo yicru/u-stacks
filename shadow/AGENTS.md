@@ -54,6 +54,7 @@ shadow/
 ## CONVENTIONS
 
 - Package manager: **bun** (`bun install`, `bun add`, `bun run`)
+- Dev server: `bun run dev` uses portless and serves the app at `https://<portless-name>.localhost`; `bun run setup` rewrites `package.json#portless.name`
 - Path alias: `@/*` → `src/*`, `@server/*` → `server/*`, `#/*` → `src/*` (subpath imports)
 - Toolchain: **Vite+** (`vite-plus`) — Vite 8 + oxlint + oxfmt を統合。`vp lint` / `vp fmt` で実行
 - Type check: `tsc -p tsconfig.check.json --noEmit`
@@ -106,7 +107,7 @@ Worker が自分自身に HTTP fetch を行い失敗する。`createIsomorphicFn
 
 ```bash
 bun run setup              # テンプレート初期化 (アプリ名をディレクトリ名に置換)
-bun run dev                # Dev server (port 3000)
+bun run dev                # Dev server via portless
 bun run build              # Production build
 bun run lint               # typecheck + vp lint + vp fmt --check
 bun run format             # vp lint --fix + vp fmt

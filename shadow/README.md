@@ -38,7 +38,8 @@ bun run db:migrate
 bun run dev
 ```
 
-Open `http://localhost:3000` after the dev server starts.
+Open `https://my-app.localhost` after the dev server starts. On first run,
+portless may ask to trust a local development CA.
 
 ## Setup Flow
 
@@ -47,6 +48,7 @@ Open `http://localhost:3000` after the dev server starts.
 During setup you can:
 
 - rename the project
+- update the portless local app name
 - create a new Turso database or connect to an existing one
 - choose a Turso group from a detected list or enter one manually
 - write `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` into `.dev.vars`
@@ -66,7 +68,7 @@ TURSO_AUTH_TOKEN=your-auth-token
 | Command                   | Description                                            |
 | ------------------------- | ------------------------------------------------------ |
 | `bun run setup`           | Initialize the template and optionally configure Turso |
-| `bun run dev`             | Start the local dev server on port 3000                |
+| `bun run dev`             | Start the local dev server through portless            |
 | `bun run build`           | Build for production                                   |
 | `bun run preview`         | Build and preview the production output                |
 | `bun run test`            | Run tests with Vitest                                  |
@@ -94,6 +96,7 @@ shadow/
 │   ├── db/              # Drizzle schema and database setup
 │   └── lib/             # Shared server utilities
 ├── scripts/             # Template setup scripts
+│   └── setup.ts
 ├── drizzle.config.ts
 ├── vitest.config.ts
 └── wrangler.jsonc
