@@ -1,146 +1,147 @@
 # SHADOW STACK
 
-TanStack Start + Hono + shadcn/ui (Base UI) + Drizzle + Turso on Cloudflare Workers.
+TanStack Start + Effect HTTP API + shadcn/ui (Base UI) + Drizzle + Turso on Cloudflare Workers.
 
 ## STRUCTURE
 
-```
+```text
 shadow/
+├── shared/api/
+│   ├── index.ts                   # ShadowApi and HttpApiGroup registration
+│   ├── errors.ts                  # Shared error schemas and constructors
+│   └── {resource}.ts              # Request, response, path, and payload schemas
 ├── src/
 │   ├── routes/
-│   │   ├── __root.tsx             # ルートレイアウト (shellComponent)
-│   │   ├── index.tsx              # トップページ
-│   │   └── api/$.ts               # /api/* → Hono app.fetch() に委譲
-│   ├── start.ts                    # createStart — defaultSsr: false (全ルート SPA デフォルト)
+│   │   ├── __root.tsx             # Root layout
+│   │   ├── index.tsx              # Top page
+│   │   └── api/$.ts               # /api/* Web Request bridge
+│   ├── start.ts                    # defaultSsr: false
 │   ├── lib/
-│   │   ├── utils.ts               # cn() ヘルパー
-│   │   └── api-client.ts          # hc<AppType> 型安全 RPC クライアント
-│   ├── components/ui/             # shadcn/ui (Base UI variant)
-│   └── features/                  # ドメイン別 UI コンポーネント
+│   │   ├── api-client.ts          # HttpApiClient generated from ShadowApi
+│   │   └── utils.ts               # cn() helper
+│   ├── components/ui/             # shadcn/ui Base UI variant
+│   └── features/                  # Domain UI components
 ├── server/
-│   ├── index.ts                   # Hono app + basePath('/api') + モジュールマウント
-│   ├── factory.ts                 # Hono ファクトリー + 共通ミドルウェア
+│   ├── index.ts                   # Production Layer composition
+│   ├── handler.ts                 # Effect API Web handler factory
 │   ├── db/
-│   │   ├── index.ts               # db — Drizzle + Turso インスタンス
-│   │   └── schema.ts              # Drizzle テーブル定義
-│   ├── modules/                   # MVC モジュール (詳細: server/modules/README.md)
-│   │   ├── {name}/
-│   │   │   ├── index.ts           # Controller — Hono ルート定義
-│   │   │   ├── service.ts         # Service — ビジネスロジック + DB 操作
-│   │   │   └── model.ts           # Model — Zod スキーマ + namespace 型定義
-│   │   └── README.md              # モジュール設計規則
-│   └── lib/                       # errors, validator, pagination, nanoid
-├── scripts/
-│   └── setup.ts                   # テンプレート初期化 (bun run setup)
-├── .scaffdog/                     # scaffdog モジュール生成テンプレート
-├── vite.config.ts                 # Vite+ (vite-plus) 統合設定 — Cloudflare + TanStack Start + lint/fmt
-├── vitest.config.ts               # Vitest 設定 (Cloudflare plugin 除外、分離維持)
-├── wrangler.jsonc                 # Cloudflare Workers 設定
-└── drizzle.config.ts              # Drizzle Kit (Turso)
+│   │   ├── index.ts               # Database Context.Tag
+│   │   ├── live.ts                # Scoped Turso/Drizzle Layer
+│   │   └── schema.ts              # Drizzle tables
+│   ├── modules/{name}/
+│   │   ├── handlers.ts            # HttpApiBuilder.group
+│   │   ├── service.ts             # Context.Tag + Live Layer
+│   │   └── service.test.ts        # Service behavior tests
+│   └── lib/                       # Pagination and ID utilities
+├── scripts/setup.ts               # Template initialization
+├── .scaffdog/module.md            # Effect module generator
+├── vite.config.ts
+├── vitest.config.ts
+├── wrangler.jsonc
+└── drizzle.config.ts
 ```
 
 ## WHERE TO LOOK
 
-| Task                | Location                   | Notes                                      |
-| ------------------- | -------------------------- | ------------------------------------------ |
-| Add page            | `src/routes/`              | TanStack Router ファイルベースルーティング |
-| Add API module      | `server/modules/`          | `bun run generate:module` で CRUD 自動生成 |
-| Add UI component    | `src/components/ui/`       | `bunx shadcn add <name>` (Base UI variant) |
-| DB schema           | `server/db/schema.ts`      | Drizzle SQLite dialect                     |
-| Env vars (dev)      | `.dev.vars`                | Turso URL + auth token                     |
-| Env vars (prod)     | `.dev.vars.production`     | dotenvx でデプロイ時に読み込み             |
-| Module design rules | `server/modules/README.md` | Elysia MVC パターン準拠                    |
+| Task                | Location                               | Notes                              |
+| ------------------- | -------------------------------------- | ---------------------------------- |
+| Add page            | `src/routes/`                          | TanStack Router file-based routing |
+| Define API contract | `shared/api/`                          | Effect Schema and HttpApi groups   |
+| Implement endpoint  | `server/modules/`                      | Handler and service Layers         |
+| Compose runtime     | `server/handler.ts`, `server/index.ts` | Web handler and production Layers  |
+| Add UI component    | `src/components/ui/`                   | `bunx shadcn add <name>`           |
+| DB schema           | `server/db/schema.ts`                  | Drizzle SQLite dialect             |
+| Module rules        | `server/modules/README.md`             | Registration and testing workflow  |
 
 ## CONVENTIONS
 
-- Package manager: **bun** (`bun install`, `bun add`, `bun run`)
-- Dev server: `bun run dev` uses portless and serves the app at `https://<portless-name>.localhost`; `bun run setup` rewrites `package.json#portless.name`
-- Path alias: `@/*` → `src/*`, `@server/*` → `server/*`, `#/*` → `src/*` (subpath imports)
-- Toolchain: **Vite+** (`vite-plus`) — Vite 8 + oxlint + oxfmt を統合。`vp lint` / `vp fmt` で実行
-- Type check: `tsc -p tsconfig.check.json --noEmit`
-- Lint/Format 設定は `vite.config.ts` の `lint` / `fmt` セクションに統合 (個別の `.oxfmtrc.json` / `oxlint.json` は不要)
-- Icon: `@hugeicons/react` + `@hugeicons/core-free-icons`
-- DB instance: `import { db } from '@server/db'` — モジュールトップレベルで import
-- SSR: `src/start.ts` で `defaultSsr: false` を設定。全ルートはデフォルト SPA モードで動作し、apiClient 経由でデータ取得
-- `src/` 下から `server/` への直接 import は禁止。apiClient (`hc<AppType>`) 経由で通信
-- Data fetching via TanStack Router loaders + `router.invalidate()` for revalidation
-- Tailwind CSS v4 with oklch colors + `@custom-variant dark` in `styles.css`
-- Vitest configured (jsdom) but no test files yet — add `*.test.ts(x)` alongside source
-- `noUnusedLocals: true`, `noUnusedParameters: true`, `noUncheckedSideEffectImports: true` in tsconfig
-- 日時表示は `src/lib/date.ts` の `formatDateTime()` (`date-fns`) を使う — DB はUTC保存のため表示層でローカルTZに変換が必要
-- shadcn/ui (Base UI) has custom components beyond standard: combobox, input-group, button-group, empty, field, item, kbd, native-select, spinner
-- Form: field.tsx (react-hook-form non-dependent) instead of tails' form.tsx (RHF integrated)
+- Package manager: bun only
+- Path aliases: `@/*` → `src/*`, `@server/*` → `server/*`, `@shared/*` → `shared/*`, `#/*` → `src/*`
+- API source of truth: `shared/api`
+- Request, response, and error validation: Effect Schema
+- HTTP server: `HttpApiBuilder` and `HttpApiBuilder.toWebHandler`
+- Browser client: `HttpApiClient.make` with `FetchHttpClient`
+- Service dependencies: `Context.Tag`
+- Production and test implementations: Layer
+- Database resources: scoped Layer with acquire/release
+- DB Promise failures: `Effect.tryPromise`, logged and mapped to typed API errors
+- Data fetching: TanStack Router loaders plus `router.invalidate()`
+- Toolchain: Vite+ with oxlint and oxfmt
+- Tests: Vitest beside contracts, services, handler, and client
+- Icons: `@hugeicons/react` and `@hugeicons/core-free-icons`
+- Date display: `src/lib/date.ts` `formatDateTime()`
+
+## MODULE WORKFLOW
+
+```bash
+bun run generate:module
+```
+
+The generator creates:
+
+```text
+shared/api/{name}.ts
+server/modules/{name}/handlers.ts
+server/modules/{name}/service.ts
+server/modules/{name}/service.test.ts
+```
+
+After generation:
+
+1. Add the Drizzle table to `server/db/schema.ts`
+2. Add the API group to `ShadowApi` in `shared/api/index.ts`
+3. Add the handler Layer and service requirement to `server/handler.ts`
+4. Provide the service Live Layer in `server/index.ts`
+5. Run database migration, tests, lint, and build
 
 ## IMPORTANT CONSTRAINTS
 
-### `@libsql/client` は `0.15.15` にピン
+### Shared contract boundary
 
-`@libsql/client@0.17.0` は `@libsql/hrana-client@0.9.0` 経由で `cross-fetch` に依存。
-`cross-fetch` は workerd (Cloudflare Workers) で `XMLHttpRequest is not defined` エラーを起こす。
-`0.15.15` は `@libsql/isomorphic-fetch` を使い、workerd export condition でネイティブ fetch に解決される。
+Browser code must not import runtime values from `server/`. It imports `ShadowApi` and resource types from `shared/api`, then calls `src/lib/api-client.ts`. The only exception is `src/routes/api/$.ts`, the TanStack Start server bridge.
 
-upstream issue: https://github.com/tursodatabase/libsql-client-ts/issues/339
+### `@libsql/client` pin
 
-### `cloudflare:workers` の `env` はモジュールトップレベルで使える
+Keep `@libsql/client` at exactly `0.15.15`. Newer releases pull a fetch implementation that fails in workerd with `XMLHttpRequest is not defined`.
 
-`import { env } from 'cloudflare:workers'` はリクエストハンドラ外でもアクセス可能。
-DB クライアントの初期化をモジュールトップレベルで行える（`createDb()` ファクトリは不要）。
+### Cloudflare environment
 
-### Vitest は Cloudflare Vite plugin と競合する
+`DatabaseLive` reads `env` from `cloudflare:workers` and owns the libSQL client lifecycle. Do not create a separate client inside modules.
 
-`vite.config.ts` を共用すると `resolve.external` エラーが発生する。
-`vitest.config.ts` を別途用意し、Cloudflare plugin を除外すること。
+### SSR self-reference
 
-### shadcn/ui は Base UI variant を使用
+`src/start.ts` sets `defaultSsr: false`. Route loaders therefore call `/api` from the browser. Enabling SSR for a route can make the Worker fetch itself, which Cloudflare Workers rejects. Use a server-side service call for SSR data loading.
 
-Radix UI ではなく `@base-ui/react` ベース。`components.json` の `registry` が `base` に設定されている。
+### Generated files
 
-### SSR と Cloudflare Workers の自己参照制約
-
-Cloudflare Workers は自分自身への HTTP リクエスト（自己参照 fetch）ができない。
-`defaultSsr: false`（`src/start.ts`）により、全ルートのローダーはクライアント側で実行されるため問題は発生しない。
-
-特定ルートで SSR を有効化する場合（`ssr: true`）、ローダー内の `apiClient`（`hc<AppType>`）はサーバー側で実行され、
-Worker が自分自身に HTTP fetch を行い失敗する。`createIsomorphicFn` や Service 層の直接呼び出しなどで回避が必要。
+Do not edit `worker-configuration.d.ts` or `src/routeTree.gen.ts` manually.
 
 ## COMMANDS
 
 ```bash
-bun run setup              # テンプレート初期化 (アプリ名をディレクトリ名に置換)
-bun run dev                # Dev server via portless
-bun run build              # Production build
-bun run lint               # typecheck + vp lint + vp fmt --check
-bun run format             # vp lint --fix + vp fmt
-bun run test               # Vitest (via vp test)
-bun run generate:module    # scaffdog でモジュール CRUD 生成
-bun run db:generate        # Drizzle Kit generate
-bun run db:migrate         # Drizzle Kit push (dev)
-bun run db:migrate:prod    # Drizzle Kit push (prod)
-bun run db:studio          # Drizzle Studio
-bun run deploy             # Cloudflare Workers デプロイ
-bun run cf-typegen         # Cloudflare env 型生成
-```
-
-## TEMPLATE SETUP
-
-```bash
-npx degit yicru/u-stacks/shadow my-app
-cd my-app
-bun run setup    # package.json, wrangler.jsonc, .cta.json のアプリ名を置換
-bun install
-cp .dev.vars.example .dev.vars   # Turso 接続情報を設定
-bun run db:migrate
+bun run setup
 bun run dev
+bun run build
+bun run lint
+bun run format
+bun run test
+bun run generate:module
+bun run db:generate
+bun run db:migrate
+bun run db:migrate:prod
+bun run db:studio
+bun run deploy
+bun run cf-typegen
 ```
 
 ## ANTI-PATTERNS
 
-- `as any`, `@ts-ignore`, `@ts-expect-error` は使わない
-- コードにコメントを書かない
-- `useEffect` は複雑なシナリオ以外で使わない
-- `src/` から `server/` を直接 import しない (apiClient 経由)
-- `server/modules/` 内の各ファイルでトップレベルにヘルパー関数や変数を散在させない (スコープルール)
-- `@libsql/client` を `0.17.0` 以上に上げない (cross-fetch 問題)
-- `worker-configuration.d.ts` は `cf-typegen` で自動生成 — 手動編集しない
-- `src/routeTree.gen.ts` は TanStack Router が自動生成 — 手動編集しない
-- 日時表示に `toLocaleDateString()` / `toLocaleTimeString()` を直接使わない (`src/lib/date.ts` 経由)
+- No `as any`, `@ts-ignore`, or `@ts-expect-error`
+- No code comments
+- Do not import `server/` from browser code
+- Do not define request or response types separately from their Schema
+- Do not turn typed service failures into untyped thrown errors
+- Do not open database clients inside request handlers or services
+- Do not add `useEffect` when render logic, events, or framework data flow can express the behavior
+- Do not upgrade `@libsql/client`
+- Do not edit generated files

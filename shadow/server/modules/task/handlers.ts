@@ -9,19 +9,13 @@ export const TaskHandlersLive = HttpApiBuilder.group(
   (handlers) =>
     handlers
       .handle('list', ({ urlParams }) =>
-        Effect.flatMap(TaskService, (service) =>
-          service.list(urlParams),
-        ),
+        Effect.flatMap(TaskService, (service) => service.list(urlParams)),
       )
       .handle('get', ({ path }) =>
-        Effect.flatMap(TaskService, (service) =>
-          service.get(path.id),
-        ),
+        Effect.flatMap(TaskService, (service) => service.get(path.id)),
       )
       .handle('create', ({ payload }) =>
-        Effect.flatMap(TaskService, (service) =>
-          service.create(payload),
-        ),
+        Effect.flatMap(TaskService, (service) => service.create(payload)),
       )
       .handle('update', ({ path, payload }) =>
         Effect.flatMap(TaskService, (service) =>
@@ -29,8 +23,6 @@ export const TaskHandlersLive = HttpApiBuilder.group(
         ),
       )
       .handle('remove', ({ path }) =>
-        Effect.flatMap(TaskService, (service) =>
-          service.remove(path.id),
-        ),
+        Effect.flatMap(TaskService, (service) => service.remove(path.id)),
       ),
 )

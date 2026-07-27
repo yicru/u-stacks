@@ -6,7 +6,7 @@
 
 ## OVERVIEW
 
-Multi-stack starter template collection. Each stack is independent (`npx degit yicru/u-stacks/<stack> my-app`) with shared Hono API pattern.
+Multi-stack starter template collection. Each stack is independent (`npx degit yicru/u-stacks/<stack> my-app`) and owns its API contract and runtime.
 
 ## STRUCTURE
 
@@ -14,7 +14,7 @@ Multi-stack starter template collection. Each stack is independent (`npx degit y
 u-stacks/
 ├── tails/                  # Next.js 15 + Radix/shadcn + Better Auth + Drizzle + Cloudflare Pages
 ├── sonic/                  # React Router v7 + Mantine + Clerk + Fly.io
-├── shadow/                 # TanStack Start + shadcn(Base UI) + Drizzle + Cloudflare Workers
+├── shadow/                 # TanStack Start + Effect HTTP API + Drizzle + Cloudflare Workers
 ├── .github/workflows/      # CI/CD (Sonic deploy only)
 └── AGENTS.md               # Per-stack knowledge bases
 ```
@@ -28,15 +28,15 @@ u-stacks/
 | Traditional fullstack | `sonic/` | Fly.io + PostgreSQL + Clerk + Mantine |
 | CI/CD | `.github/workflows/` | Only `deploy-sonic.yml` exists |
 
-## SHARED PATTERNS (ALL STACKS)
+## API PATTERNS
 
 ### Server Layer
 
-- Hono framework for all API routes
-- `server/index.ts` → app definition with route mounting on `/api` base path
-- `server/factory.ts` → Hono instance creation with middleware injection
-- `server/routes/*.ts` → domain route handlers (shadow uses `server/modules/` MVC pattern instead)
-- Type-safe RPC via `hc<AppType>` (Hono client)
+- tails and sonic use Hono routes and `hc<AppType>` clients
+- shadow uses Effect `HttpApi`, Effect Schema, `HttpApiBuilder`, and `HttpApiClient`
+- shadow keeps the shared runtime contract in `shared/api`
+- shadow composes database and domain services with `Context.Tag` and Layer
+- all stacks mount their public API below `/api`
 
 ### Client Layer
 
@@ -56,13 +56,15 @@ u-stacks/
 | | tails | sonic | shadow |
 |---|---|---|---|
 | Framework | Next.js 15 | React Router v7 | TanStack Start |
+| API | Hono | Hono | Effect HTTP API |
+| Contract | Hono RPC | Hono RPC | Effect Schema + HttpApi |
 | UI | shadcn/ui (Radix) | Mantine | shadcn/ui (Base UI) |
 | Auth | Better Auth | Clerk | None |
 | ORM | Drizzle (Turso) | Prisma (PostgreSQL) | Drizzle (Turso) |
 | Deploy | Cloudflare Pages | Fly.io | Cloudflare Workers |
 | Pkg manager | npm | npm | **bun** |
 | Lint | Biome 2.1.4 | Biome 1.9.4 | oxlint + oxfmt |
-| Path alias | `@/*` `@server/*` | `~/*` | `@/*` `@server/*` `#/*` |
+| Path alias | `@/*` `@server/*` | `~/*` | `@/*` `@server/*` `@shared/*` `#/*` |
 | Test | None | None | Vitest |
 | Icon | lucide-react | N/A (Mantine) | @hugeicons/react |
 | Form | react-hook-form | mantine-form | field.tsx (RHF non-dependent) |
@@ -70,7 +72,7 @@ u-stacks/
 
 ## CONVENTIONS
 
-- Path aliases differ: tails/shadow `@/*` + `@server/*` vs sonic `~/*` (shadow also has `#/*` subpath imports)
+- Path aliases differ: tails uses `@/*` + `@server/*`, sonic uses `~/*`, and shadow adds `@shared/*` + `#/*`
 - Lint tool split: Biome (tails/sonic) vs oxlint+oxfmt (shadow)
 - Biome version mismatch: tails=2.1.4, sonic=1.9.4
 - No shared code between stacks — consumed independently via `degit`
@@ -91,7 +93,7 @@ u-stacks/
   - `shadow/worker-configuration.d.ts` (Wrangler)
   - `shadow/src/routeTree.gen.ts` (TanStack Router)
 - shadow: `@libsql/client` pinned to `0.15.15` — do NOT upgrade (cross-fetch workerd issue)
-- shadow: Do NOT import `server/` from `src/` directly — use apiClient (`hc<AppType>`)
+- shadow: Do NOT import `server/` from browser code — use the shared Effect contract and `HttpApiClient`; only `src/routes/api/$.ts` is the server bridge
 
 ## COMMANDS
 
@@ -118,6 +120,6 @@ bun run generate:module  # scaffdog module CRUD generation
 - Only Sonic has GitHub Actions CI (`deploy-sonic.yml` → Fly.io)
 - Tails deploys via OpenNext to Cloudflare Pages (`npm run deploy:production`)
 - Shadow deploys via Wrangler to Cloudflare Workers (`bun run deploy`)
-- shadow has unique MVC module pattern (`server/modules/{name}/` with index/service/model)
+- shadow has an Effect module pattern: shared contract plus handler, service, and test Layers
 - Shadow has `scripts/setup.ts` for template initialization (`bun run setup` replaces app name in package.json, wrangler.jsonc, .cta.json)
 - Shadow's shadcn/ui (Base UI) includes custom components not in standard shadcn: combobox, input-group, button-group, empty, field, item, kbd, native-select, spinner

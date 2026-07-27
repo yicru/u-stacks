@@ -26,10 +26,7 @@ export const TaskListQuery = Schema.Struct({
 export type TaskListQuery = Schema.Schema.Type<typeof TaskListQuery>
 
 export const PaginationMeta = Schema.Struct({
-  page: Schema.Number.pipe(
-    Schema.int(),
-    Schema.greaterThanOrEqualTo(1),
-  ),
+  page: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1)),
   perPage: Schema.Number.pipe(Schema.int(), Schema.between(1, 50)),
   total: Schema.NonNegativeInt,
   totalPages: Schema.NonNegativeInt,
@@ -40,9 +37,7 @@ export const TaskListResponse = Schema.Struct({
   data: Schema.Array(Task),
   meta: PaginationMeta,
 })
-export type TaskListResponse = Schema.Schema.Type<
-  typeof TaskListResponse
->
+export type TaskListResponse = Schema.Schema.Type<typeof TaskListResponse>
 
 export const TaskPath = Schema.Struct({
   id: Schema.String.pipe(Schema.minLength(1)),
@@ -56,9 +51,7 @@ export const TaskCreateBody = Schema.Struct({
 export type TaskCreateBody = Schema.Schema.Type<typeof TaskCreateBody>
 
 export const TaskUpdateBody = Schema.Struct({
-  title: Schema.optional(
-    Schema.String.pipe(Schema.minLength(1)),
-  ),
+  title: Schema.optional(Schema.String.pipe(Schema.minLength(1))),
   done: Schema.optional(Schema.Boolean),
 })
 export type TaskUpdateBody = Schema.Schema.Type<typeof TaskUpdateBody>
@@ -69,6 +62,4 @@ export type TaskResponse = Schema.Schema.Type<typeof TaskResponse>
 export const TaskDeleteResponse = Schema.Struct({
   success: Schema.Literal(true),
 })
-export type TaskDeleteResponse = Schema.Schema.Type<
-  typeof TaskDeleteResponse
->
+export type TaskDeleteResponse = Schema.Schema.Type<typeof TaskDeleteResponse>

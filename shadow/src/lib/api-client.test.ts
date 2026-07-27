@@ -40,9 +40,7 @@ describe('Effect API client', () => {
     expect(url.pathname).toBe('/api/tasks')
     expect(url.searchParams.get('page')).toBe('2')
     expect(url.searchParams.get('perPage')).toBe('25')
-    expect(response.data[0]?.createdAt).toEqual(
-      new Date(task.createdAt),
-    )
+    expect(response.data[0]?.createdAt).toEqual(new Date(task.createdAt))
   })
 
   it('sends create payloads with the existing endpoint contract', async () => {
@@ -92,9 +90,7 @@ describe('Effect API client', () => {
     })
 
     const error = await Effect.runPromise(
-      client.tasks
-        .get({ path: { id: 'missing' } })
-        .pipe(Effect.flip),
+      client.tasks.get({ path: { id: 'missing' } }).pipe(Effect.flip),
     )
 
     expect(error).toEqual({

@@ -3,10 +3,7 @@ import { ShadowApi } from './index'
 
 describe('ShadowApi', () => {
   it('declares the health check and task groups', () => {
-    expect(Object.keys(ShadowApi.groups)).toEqual([
-      'healthCheck',
-      'tasks',
-    ])
+    expect(Object.keys(ShadowApi.groups)).toEqual(['healthCheck', 'tasks'])
   })
 
   it('declares every existing task operation', () => {

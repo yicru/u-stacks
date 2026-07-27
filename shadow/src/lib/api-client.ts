@@ -1,7 +1,4 @@
-import {
-  FetchHttpClient,
-  HttpApiClient,
-} from '@effect/platform'
+import { FetchHttpClient, HttpApiClient } from '@effect/platform'
 import { Effect, Layer } from 'effect'
 import { ShadowApi } from '@shared/api'
 
@@ -16,9 +13,7 @@ export const makeApiClient = ({
 }: ApiClientOptions = {}) => {
   const httpClientLayer = fetch
     ? FetchHttpClient.layer.pipe(
-        Layer.provide(
-          Layer.succeed(FetchHttpClient.Fetch, fetch),
-        ),
+        Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetch)),
       )
     : FetchHttpClient.layer
 

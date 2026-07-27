@@ -1,8 +1,4 @@
-import {
-  HttpApi,
-  HttpApiEndpoint,
-  HttpApiGroup,
-} from '@effect/platform'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from '@effect/platform'
 import { ApiError } from './errors'
 import { HealthCheckResponse } from './health-check'
 import {
@@ -15,12 +11,8 @@ import {
   TaskUpdateBody,
 } from './task'
 
-export class HealthCheckApi extends HttpApiGroup.make(
-  'healthCheck',
-).add(
-  HttpApiEndpoint.get('check', '/health-check').addSuccess(
-    HealthCheckResponse,
-  ),
+export class HealthCheckApi extends HttpApiGroup.make('healthCheck').add(
+  HttpApiEndpoint.get('check', '/health-check').addSuccess(HealthCheckResponse),
 ) {}
 
 export class TaskApi extends HttpApiGroup.make('tasks')

@@ -1,11 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import {
-  Task,
-  TaskCreateBody,
-  TaskListQuery,
-  TaskUpdateBody,
-} from './task'
+import { Task, TaskCreateBody, TaskListQuery, TaskUpdateBody } from './task'
 
 describe('TaskListQuery', () => {
   it('uses the existing pagination defaults', () => {
@@ -36,9 +31,9 @@ describe('TaskListQuery', () => {
 
 describe('Task payloads', () => {
   it('requires a non-empty title when creating a task', () => {
-    expect(
-      Schema.decodeUnknownEither(TaskCreateBody)({ title: '' })._tag,
-    ).toBe('Left')
+    expect(Schema.decodeUnknownEither(TaskCreateBody)({ title: '' })._tag).toBe(
+      'Left',
+    )
   })
 
   it('accepts an empty update body for compatibility', () => {

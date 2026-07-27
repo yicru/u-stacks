@@ -20,9 +20,7 @@ export namespace ApiError {
   })
   export type Internal = Schema.Schema.Type<typeof Internal>
 
-  export const validation = (
-    detail: ReadonlyArray<unknown>,
-  ): Validation => ({
+  export const validation = (detail: ReadonlyArray<unknown>): Validation => ({
     code: 'VALIDATION_ERROR',
     message: 'Validation Error',
     detail,

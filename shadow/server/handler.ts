@@ -1,7 +1,4 @@
-import {
-  HttpApiBuilder,
-  HttpServer,
-} from '@effect/platform'
+import { HttpApiBuilder, HttpServer } from '@effect/platform'
 import { Layer } from 'effect'
 import { HealthCheckHandlersLive } from '@server/modules/health-check/handlers'
 import { TaskHandlersLive } from '@server/modules/task/handlers'
@@ -17,17 +14,10 @@ const ApiHandlersLive = Layer.mergeAll(
 export const makeApiHandler = <E>(
   taskServiceLayer: Layer.Layer<TaskService, E, never>,
 ) => {
-  const handlers = ApiHandlersLive.pipe(
-    Layer.provide(taskServiceLayer),
-  )
-  const api = HttpApiBuilder.api(ShadowApi).pipe(
-    Layer.provide(handlers),
-  )
+  const handlers = ApiHandlersLive.pipe(Layer.provide(taskServiceLayer))
+  const api = HttpApiBuilder.api(ShadowApi).pipe(Layer.provide(handlers))
   const web = HttpApiBuilder.toWebHandler(
-    Layer.mergeAll(
-      api,
-      HttpServer.layerContext,
-    ),
+    Layer.mergeAll(api, HttpServer.layerContext),
   )
 
   return {
@@ -35,7 +25,10 @@ export const makeApiHandler = <E>(
     handler: async (request: Request) => {
       const response = await web.handler(request)
       if (response.status === 400) {
-        const body = await response.clone().json().catch(() => undefined)
+        const body = await response
+          .clone()
+          .json()
+          .catch(() => undefined)
         if (
           typeof body === 'object' &&
           body !== null &&
@@ -44,21 +37,19 @@ export const makeApiHandler = <E>(
           'issues' in body &&
           Array.isArray(body.issues)
         ) {
-          return Response.json(
-            ApiError.validation(body.issues),
-            { status: 400 },
-          )
+          return Response.json(ApiError.validation(body.issues), {
+            status: 400,
+          })
         }
       }
       if (response.status !== 404) {
         return response
       }
-      const body = await response.clone().json().catch(() => undefined)
-      if (
-        typeof body === 'object' &&
-        body !== null &&
-        'code' in body
-      ) {
+      const body = await response
+        .clone()
+        .json()
+        .catch(() => undefined)
+      if (typeof body === 'object' && body !== null && 'code' in body) {
         return response
       }
       return Response.json(

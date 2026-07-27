@@ -53,9 +53,9 @@ describe('TaskService', () => {
 
   it('fails with NOT_FOUND for a missing task', async () => {
     const exit = await Effect.runPromiseExit(
-      Effect.flatMap(TaskService, (service) =>
-        service.get('missing'),
-      ).pipe(Effect.provide(TestLive)),
+      Effect.flatMap(TaskService, (service) => service.get('missing')).pipe(
+        Effect.provide(TestLive),
+      ),
     )
 
     expect(exit._tag).toBe('Failure')

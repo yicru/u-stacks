@@ -18,20 +18,14 @@ export interface TaskServiceShape {
   ) => Effect.Effect<TaskListResponse, ApiError.Internal>
   readonly get: (
     id: string,
-  ) => Effect.Effect<
-    TaskResponse,
-    ApiError.NotFound | ApiError.Internal
-  >
+  ) => Effect.Effect<TaskResponse, ApiError.NotFound | ApiError.Internal>
   readonly create: (
     body: TaskCreateBody,
   ) => Effect.Effect<TaskResponse, ApiError.Internal>
   readonly update: (
     id: string,
     body: TaskUpdateBody,
-  ) => Effect.Effect<
-    TaskResponse,
-    ApiError.NotFound | ApiError.Internal
-  >
+  ) => Effect.Effect<TaskResponse, ApiError.NotFound | ApiError.Internal>
   readonly remove: (
     id: string,
   ) => Effect.Effect<
@@ -80,9 +74,7 @@ export const TaskServiceLive = Layer.effect(
           Effect.flatMap((data) =>
             data[0]
               ? Effect.succeed({ data: data[0] })
-              : Effect.fail(
-                  ApiError.notFound(`Task with id ${id} not found`),
-                ),
+              : Effect.fail(ApiError.notFound(`Task with id ${id} not found`)),
           ),
         ),
       create: (body) =>
@@ -109,9 +101,7 @@ export const TaskServiceLive = Layer.effect(
           Effect.flatMap((data) =>
             data[0]
               ? Effect.succeed({ data: data[0] })
-              : Effect.fail(
-                  ApiError.notFound(`Task with id ${id} not found`),
-                ),
+              : Effect.fail(ApiError.notFound(`Task with id ${id} not found`)),
           ),
         ),
       remove: (id) =>
@@ -124,9 +114,7 @@ export const TaskServiceLive = Layer.effect(
           Effect.flatMap((data) =>
             data[0]
               ? Effect.succeed({ success: true as const })
-              : Effect.fail(
-                  ApiError.notFound(`Task with id ${id} not found`),
-                ),
+              : Effect.fail(ApiError.notFound(`Task with id ${id} not found`)),
           ),
         ),
     } satisfies TaskServiceShape

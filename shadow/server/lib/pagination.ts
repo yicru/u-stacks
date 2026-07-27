@@ -13,9 +13,7 @@ export function withPagination<T extends SQLiteSelect>(
   if (params.orderByColumn) {
     qb.orderBy(params.orderByColumn)
   }
-  return qb
-    .limit(params.perPage)
-    .offset((params.page - 1) * params.perPage)
+  return qb.limit(params.perPage).offset((params.page - 1) * params.perPage)
 }
 
 export function toPaginatedResponse<T>(

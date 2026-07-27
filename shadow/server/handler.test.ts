@@ -1,10 +1,5 @@
 import { Effect, Layer, Schema } from 'effect'
-import {
-  afterAll,
-  describe,
-  expect,
-  it,
-} from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import {
   TaskService,
   type TaskServiceShape,
@@ -30,23 +25,16 @@ const TaskServiceTest = Layer.succeed(TaskService, {
   get: (id) =>
     id === task.id
       ? Effect.succeed({ data: task })
-      : Effect.fail(
-          ApiError.notFound(`Task with id ${id} not found`),
-        ),
-  create: (body) =>
-    Effect.succeed({ data: { ...task, ...body } }),
+      : Effect.fail(ApiError.notFound(`Task with id ${id} not found`)),
+  create: (body) => Effect.succeed({ data: { ...task, ...body } }),
   update: (id, body) =>
     id === task.id
       ? Effect.succeed({ data: { ...task, ...body } })
-      : Effect.fail(
-          ApiError.notFound(`Task with id ${id} not found`),
-        ),
+      : Effect.fail(ApiError.notFound(`Task with id ${id} not found`)),
   remove: (id) =>
     id === task.id
       ? Effect.succeed({ success: true })
-      : Effect.fail(
-          ApiError.notFound(`Task with id ${id} not found`),
-        ),
+      : Effect.fail(ApiError.notFound(`Task with id ${id} not found`)),
 } satisfies TaskServiceShape)
 
 const TaskServiceFailure = Layer.succeed(TaskService, {
@@ -73,9 +61,7 @@ describe('Effect API handler', () => {
 
   it('serves the existing task list contract', async () => {
     const response = await handler(
-      new Request(
-        'http://localhost/api/tasks?page=2&perPage=25',
-      ),
+      new Request('http://localhost/api/tasks?page=2&perPage=25'),
     )
     const body = Schema.decodeUnknownSync(TaskListResponse)(
       await response.json(),
@@ -171,9 +157,7 @@ describe('Effect API handler', () => {
   })
 
   it('normalizes an unknown endpoint', async () => {
-    const response = await handler(
-      new Request('http://localhost/api/unknown'),
-    )
+    const response = await handler(new Request('http://localhost/api/unknown'))
 
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({

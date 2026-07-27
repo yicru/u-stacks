@@ -6,7 +6,5 @@ export const HealthCheckHandlersLive = HttpApiBuilder.group(
   ShadowApi,
   'healthCheck',
   (handlers) =>
-    handlers.handle('check', () =>
-      Effect.succeed({ message: 'ok' as const }),
-    ),
+    handlers.handle('check', () => Effect.succeed({ message: 'ok' as const })),
 )
