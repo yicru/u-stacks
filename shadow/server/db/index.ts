@@ -1,12 +1,10 @@
-import { env } from 'cloudflare:workers'
-import { drizzle } from 'drizzle-orm/libsql'
-import { createClient } from '@libsql/client'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
+import { Context } from 'effect'
 import * as schema from './schema'
 
-export const db = drizzle(
-  createClient({
-    url: env.TURSO_DATABASE_URL,
-    authToken: env.TURSO_AUTH_TOKEN,
-  }),
-  { schema },
-)
+export type DatabaseClient = LibSQLDatabase<typeof schema>
+
+export class Database extends Context.Tag('@server/db/Database')<
+  Database,
+  DatabaseClient
+>() {}
