@@ -11,6 +11,35 @@ const task = {
 }
 
 describe('Effect API client', () => {
+  it('uses the current origin when no API URL is configured', async () => {
+    const requests: Array<string> = []
+    const fetch: typeof globalThis.fetch = async (input) => {
+      requests.push(input instanceof Request ? input.url : input.toString())
+      return Response.json({
+        data: [],
+        meta: {
+          page: 1,
+          perPage: 10,
+          total: 0,
+          totalPages: 0,
+        },
+      })
+    }
+    const client = makeApiClient({ fetch })
+
+    await Effect.runPromise(
+      client.tasks.list({
+        urlParams: { page: 1, perPage: 10 },
+      }),
+    )
+
+    const url = new URL(requests[0] ?? '')
+    expect(url.origin).toBe(globalThis.location.origin)
+    expect(url.pathname).toBe('/api/tasks')
+    expect(url.searchParams.get('page')).toBe('1')
+    expect(url.searchParams.get('perPage')).toBe('10')
+  })
+
   it('encodes task list query parameters and decodes dates', async () => {
     const requests: Array<Request> = []
     const fetch: typeof globalThis.fetch = async (input, init) => {
