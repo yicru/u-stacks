@@ -29,7 +29,7 @@ export function TaskList({ tasks }: TaskListProps) {
     startTransition(async () => {
       try {
         await Effect.runPromise(
-          apiClient.tasks.update({
+          apiClient.tasks.updateTask({
             path: { id: task.id },
             payload: { done: !task.done },
           }),
@@ -45,7 +45,7 @@ export function TaskList({ tasks }: TaskListProps) {
     startTransition(async () => {
       try {
         await Effect.runPromise(
-          apiClient.tasks.remove({
+          apiClient.tasks.deleteTask({
             path: { id },
           }),
         )

@@ -76,7 +76,7 @@ export class {{ inputs.name | pascal }}Api extends HttpApiGroup.make(
 )
   .add(
     HttpApiEndpoint.get(
-      'list',
+      'get{{ inputs.name | plur | pascal }}',
       '/{{ inputs.name | kebab | plur }}',
     )
       .setUrlParams({{ inputs.name | pascal }}ListQuery)
@@ -85,7 +85,7 @@ export class {{ inputs.name | pascal }}Api extends HttpApiGroup.make(
   )
   .add(
     HttpApiEndpoint.get(
-      'get',
+      'get{{ inputs.name | pascal }}',
       '/{{ inputs.name | kebab | plur }}/:id',
     )
       .setPath({{ inputs.name | pascal }}Path)
@@ -95,7 +95,7 @@ export class {{ inputs.name | pascal }}Api extends HttpApiGroup.make(
   )
   .add(
     HttpApiEndpoint.post(
-      'create',
+      'create{{ inputs.name | pascal }}',
       '/{{ inputs.name | kebab | plur }}',
     )
       .setPayload({{ inputs.name | pascal }}CreateBody)
@@ -104,7 +104,7 @@ export class {{ inputs.name | pascal }}Api extends HttpApiGroup.make(
   )
   .add(
     HttpApiEndpoint.put(
-      'update',
+      'update{{ inputs.name | pascal }}',
       '/{{ inputs.name | kebab | plur }}/:id',
     )
       .setPath({{ inputs.name | pascal }}Path)
@@ -115,7 +115,7 @@ export class {{ inputs.name | pascal }}Api extends HttpApiGroup.make(
   )
   .add(
     HttpApiEndpoint.del(
-      'remove',
+      'delete{{ inputs.name | pascal }}',
       '/{{ inputs.name | kebab | plur }}/:id',
     )
       .setPath({{ inputs.name | pascal }}Path)
@@ -311,31 +311,33 @@ export const {{ inputs.name | pascal }}HandlersLive =
     '{{ inputs.name | camel | plur }}',
     (handlers) =>
       handlers
-        .handle('list', ({ urlParams }) =>
-          Effect.flatMap(
-            {{ inputs.name | pascal }}Service,
-            (service) => service.list(urlParams),
-          ),
+        .handle(
+          'get{{ inputs.name | plur | pascal }}',
+          ({ urlParams }) =>
+            Effect.flatMap(
+              {{ inputs.name | pascal }}Service,
+              (service) => service.list(urlParams),
+            ),
         )
-        .handle('get', ({ path }) =>
+        .handle('get{{ inputs.name | pascal }}', ({ path }) =>
           Effect.flatMap(
             {{ inputs.name | pascal }}Service,
             (service) => service.get(path.id),
           ),
         )
-        .handle('create', ({ payload }) =>
+        .handle('create{{ inputs.name | pascal }}', ({ payload }) =>
           Effect.flatMap(
             {{ inputs.name | pascal }}Service,
             (service) => service.create(payload),
           ),
         )
-        .handle('update', ({ path, payload }) =>
+        .handle('update{{ inputs.name | pascal }}', ({ path, payload }) =>
           Effect.flatMap(
             {{ inputs.name | pascal }}Service,
             (service) => service.update(path.id, payload),
           ),
         )
-        .handle('remove', ({ path }) =>
+        .handle('delete{{ inputs.name | pascal }}', ({ path }) =>
           Effect.flatMap(
             {{ inputs.name | pascal }}Service,
             (service) => service.remove(path.id),

@@ -28,7 +28,7 @@ describe('Effect API client', () => {
     const client = makeApiClient({ fetch })
 
     await Effect.runPromise(
-      client.tasks.list({
+      client.tasks.getTasks({
         urlParams: { page: 1, perPage: 10 },
       }),
     )
@@ -60,7 +60,7 @@ describe('Effect API client', () => {
     })
 
     const response = await Effect.runPromise(
-      client.tasks.list({
+      client.tasks.getTasks({
         urlParams: { page: 2, perPage: 25 },
       }),
     )
@@ -92,7 +92,7 @@ describe('Effect API client', () => {
     })
 
     const response = await Effect.runPromise(
-      client.tasks.create({
+      client.tasks.createTask({
         payload: { title: 'Created' },
       }),
     )
@@ -119,7 +119,7 @@ describe('Effect API client', () => {
     })
 
     const error = await Effect.runPromise(
-      client.tasks.get({ path: { id: 'missing' } }).pipe(Effect.flip),
+      client.tasks.getTask({ path: { id: 'missing' } }).pipe(Effect.flip),
     )
 
     expect(error).toEqual({

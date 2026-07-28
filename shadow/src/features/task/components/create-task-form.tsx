@@ -27,7 +27,7 @@ export function CreateTaskForm() {
     onSubmit: async ({ value }) => {
       try {
         await Effect.runPromise(
-          apiClient.tasks.create({
+          apiClient.tasks.createTask({
             payload: { title: value.title },
           }),
         )

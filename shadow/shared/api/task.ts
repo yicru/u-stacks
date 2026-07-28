@@ -48,26 +48,26 @@ export type TaskDeleteResponse = Schema.Schema.Type<typeof TaskDeleteResponse>
 
 export class TaskApi extends HttpApiGroup.make('tasks')
   .add(
-    HttpApiEndpoint.get('list', '/tasks')
+    HttpApiEndpoint.get('getTasks', '/tasks')
       .setUrlParams(TaskListQuery)
       .addSuccess(TaskListResponse)
       .addError(ApiError.Internal, { status: 500 }),
   )
   .add(
-    HttpApiEndpoint.get('get', '/tasks/:id')
+    HttpApiEndpoint.get('getTask', '/tasks/:id')
       .setPath(TaskPath)
       .addSuccess(TaskResponse)
       .addError(ApiError.NotFound, { status: 404 })
       .addError(ApiError.Internal, { status: 500 }),
   )
   .add(
-    HttpApiEndpoint.post('create', '/tasks')
+    HttpApiEndpoint.post('createTask', '/tasks')
       .setPayload(TaskCreateBody)
       .addSuccess(TaskResponse, { status: 201 })
       .addError(ApiError.Internal, { status: 500 }),
   )
   .add(
-    HttpApiEndpoint.put('update', '/tasks/:id')
+    HttpApiEndpoint.put('updateTask', '/tasks/:id')
       .setPath(TaskPath)
       .setPayload(TaskUpdateBody)
       .addSuccess(TaskResponse)
@@ -75,7 +75,7 @@ export class TaskApi extends HttpApiGroup.make('tasks')
       .addError(ApiError.Internal, { status: 500 }),
   )
   .add(
-    HttpApiEndpoint.del('remove', '/tasks/:id')
+    HttpApiEndpoint.del('deleteTask', '/tasks/:id')
       .setPath(TaskPath)
       .addSuccess(TaskDeleteResponse)
       .addError(ApiError.NotFound, { status: 404 })

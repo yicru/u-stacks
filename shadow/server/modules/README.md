@@ -39,6 +39,7 @@ src/lib/api-client.ts
 
 request、response、errorは`shared/api`のEffect Schemaで定義する。型はSchemaから導出し、interfaceとの二重管理をしない。
 一覧APIは`shared/api/pagination.ts`の`PaginationQuery`と`PaginationMeta`を再利用する。
+endpoint identifierは生成clientのmethod名になるため、`getResources`、`getResource`、`createResource`、`updateResource`、`deleteResource`の形式に統一する。
 
 ```typescript
 import { HttpApiEndpoint, HttpApiGroup } from '@effect/platform'
@@ -59,7 +60,7 @@ export const ProjectResponse = Schema.Struct({
 })
 
 export class ProjectApi extends HttpApiGroup.make('projects').add(
-  HttpApiEndpoint.post('create', '/projects')
+  HttpApiEndpoint.post('createProject', '/projects')
     .setPayload(ProjectCreateBody)
     .addSuccess(ProjectResponse, { status: 201 })
     .addError(ApiError.Internal, { status: 500 }),
@@ -82,7 +83,7 @@ export const ProjectHandlersLive = HttpApiBuilder.group(
   ShadowApi,
   'projects',
   (handlers) =>
-    handlers.handle('create', ({ payload }) =>
+    handlers.handle('createProject', ({ payload }) =>
       Effect.flatMap(ProjectService, (service) => service.create(payload)),
     ),
 )

@@ -60,6 +60,7 @@ shadow/
 - Path aliases: `@/*` → `src/*`, `@server/*` → `server/*`, `@shared/*` → `shared/*`, `#/*` → `src/*`
 - API source of truth: `shared/api`
 - Pagination contract: reuse `shared/api/pagination.ts` across resource modules
+- Endpoint identifiers: `getResources`, `getResource`, `createResource`, `updateResource`, `deleteResource`
 - Request, response, and error validation: Effect Schema
 - HTTP server: `HttpApiBuilder` and `HttpApiBuilder.toWebHandler`
 - Browser client: `HttpApiClient.make` with `FetchHttpClient`
