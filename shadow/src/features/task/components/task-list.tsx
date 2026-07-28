@@ -2,6 +2,7 @@ import { Effect } from 'effect'
 import { useRouter } from '@tanstack/react-router'
 import { useTransition } from 'react'
 import { toast } from 'sonner'
+import { cva } from 'class-variance-authority'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon, TaskDone01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
@@ -12,7 +13,6 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/lib/date'
 import { apiClient } from '@/lib/api-client'
 import type { Task } from '@shared/api/task'
@@ -104,31 +104,17 @@ function EmptyTaskList() {
   )
 }
 
-const taskContainerClassName = (done: boolean) =>
-  cn(
-    'group flex items-center gap-3 rounded-lg border bg-card p-3 shadow-xs transition-all hover:border-border/80',
-    done
-      ? 'border-transparent bg-muted/20 shadow-none hover:border-transparent'
-      : 'border-border/50',
-  )
-
-const taskCheckboxClassName = (done: boolean) =>
-  cn('transition-opacity', done && 'opacity-60')
-
-const taskTitleClassName = (done: boolean) =>
-  cn(
-    'flex-1 text-sm font-medium transition-colors',
-    done ? 'text-muted-foreground line-through' : 'text-foreground',
-  )
-
-const taskDateClassName = (done: boolean) =>
-  cn(
-    'tabular-nums text-xs text-muted-foreground transition-opacity',
-    done ? 'opacity-50' : 'opacity-100',
-  )
-
-const taskCreatedAtLabel = (createdAt: Date | string | undefined) =>
-  createdAt ? formatDateTime(createdAt) : '-'
+const taskItemVariants = cva(
+  'group/task flex items-center gap-3 rounded-lg border bg-card p-3 shadow-xs transition-all hover:border-border/80',
+  {
+    variants: {
+      completed: {
+        true: 'border-transparent bg-muted/20 shadow-none hover:border-transparent',
+        false: 'border-border/50',
+      },
+    },
+  },
+)
 
 function TaskListItem({
   task,
@@ -137,16 +123,21 @@ function TaskListItem({
   onDelete,
 }: TaskListItemProps) {
   return (
-    <div className={taskContainerClassName(task.done)}>
+    <div
+      data-completed={task.done}
+      className={taskItemVariants({ completed: task.done })}
+    >
       <Checkbox
         checked={task.done}
         onCheckedChange={() => onToggle(task)}
         disabled={disabled}
-        className={taskCheckboxClassName(task.done)}
+        className="transition-opacity group-data-[completed=true]/task:opacity-60"
       />
-      <span className={taskTitleClassName(task.done)}>{task.title}</span>
-      <span className={taskDateClassName(task.done)}>
-        {taskCreatedAtLabel(task.createdAt)}
+      <span className="flex-1 text-sm font-medium text-foreground transition-colors group-data-[completed=true]/task:text-muted-foreground group-data-[completed=true]/task:line-through">
+        {task.title}
+      </span>
+      <span className="tabular-nums text-xs text-muted-foreground opacity-100 transition-opacity group-data-[completed=true]/task:opacity-50">
+        {task.createdAt ? formatDateTime(task.createdAt) : '-'}
       </span>
       <Button
         disabled={disabled}
