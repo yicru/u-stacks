@@ -92,7 +92,7 @@ u-stacks/
   - `tails/server/db/auth-schema.ts` (Better Auth)
   - `shadow/worker-configuration.d.ts` (Wrangler)
   - `shadow/src/routeTree.gen.ts` (TanStack Router)
-- shadow: `@libsql/client` pinned to `0.15.15` — do NOT upgrade (cross-fetch workerd issue)
+- shadow: `@libsql/client` pinned to `0.17.4` — it uses native fetch after the cross-fetch workerd regression
 - shadow: Do NOT import `server/` from browser code — use the shared Effect contract and `HttpApiClient`; only `src/routes/api/$.ts` is the server bridge
 
 ## COMMANDS

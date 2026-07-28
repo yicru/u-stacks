@@ -125,7 +125,7 @@ Prepare production credentials before deploying or running `bun run db:migrate:p
 ## Notes
 
 - Package manager: `bun`
-- `@libsql/client` is pinned to `0.15.15` for Cloudflare Workers compatibility
+- `@libsql/client` is pinned to `0.17.4`, which uses native `fetch` in Cloudflare Workers
 - `src/` must not import `server/` runtime modules; use the shared contract and `HttpApiClient`
 - The only bridge exception is `src/routes/api/$.ts`, which forwards Web requests to the server handler
 - `worker-configuration.d.ts` and `src/routeTree.gen.ts` are generated files

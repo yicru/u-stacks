@@ -30,7 +30,7 @@
     "@fontsource-variable/noto-sans-jp": "^5.2.10",
     "@hugeicons/core-free-icons": "^4.2.1",
     "@hugeicons/react": "^1.1.7",
-    "@libsql/client": "0.15.15",
+    "@libsql/client": "0.17.4",
     "@tanstack/react-devtools": "^0.10.7",
     "@tanstack/react-form": "^1.33.0",
     "@tanstack/react-router": "^1.170.16",
@@ -78,7 +78,7 @@
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vite-plus": "0.2.1",
-    "wrangler": "^4.103.0"
+    "wrangler": "^4.114.0"
   },
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@0.2.1"
