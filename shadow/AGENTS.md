@@ -7,7 +7,7 @@ TanStack Start + Effect HTTP API + shadcn/ui (Base UI) + Drizzle + Turso on Clou
 ```text
 shadow/
 ├── shared/api/
-│   ├── index.ts                   # Top-level ShadowApi composition
+│   ├── index.ts                   # Top-level AppApi composition
 │   ├── errors.ts                  # Shared error schemas and constructors
 │   ├── pagination.ts              # Shared pagination query and metadata schemas
 │   └── {resource}.ts              # Request, response, path, and payload schemas
@@ -18,7 +18,7 @@ shadow/
 │   │   └── api/$.ts               # /api/* Web Request bridge
 │   ├── start.ts                    # defaultSsr: false
 │   ├── lib/
-│   │   ├── api-client.ts          # HttpApiClient generated from ShadowApi
+│   │   ├── api-client.ts          # HttpApiClient generated from AppApi
 │   │   └── utils.ts               # cn() helper
 │   ├── components/ui/             # shadcn/ui Base UI variant
 │   └── features/                  # Domain UI components
@@ -92,7 +92,7 @@ server/modules/{name}/service.test.ts
 After generation:
 
 1. Add the Drizzle table to `server/db/schema.ts`
-2. Add the API group to `ShadowApi` in `shared/api/index.ts`
+2. Add the API group to `AppApi` in `shared/api/index.ts`
 3. Add the handler Layer and service requirement to `server/handler.ts`
 4. Provide the service Live Layer in `server/index.ts`
 5. Run database migration, tests, lint, and build
@@ -101,7 +101,7 @@ After generation:
 
 ### Shared contract boundary
 
-Browser code must not import runtime values from `server/`. It imports `ShadowApi` and resource types from `shared/api`, then calls `src/lib/api-client.ts`. The only exception is `src/routes/api/$.ts`, the TanStack Start server bridge.
+Browser code must not import runtime values from `server/`. It imports `AppApi` and resource types from `shared/api`, then calls `src/lib/api-client.ts`. The only exception is `src/routes/api/$.ts`, the TanStack Start server bridge.
 
 ### `@libsql/client` pin
 

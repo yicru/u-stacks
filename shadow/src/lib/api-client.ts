@@ -1,6 +1,6 @@
 import { FetchHttpClient, HttpApiClient } from '@effect/platform'
 import { Effect, Layer } from 'effect'
-import { ShadowApi } from '@shared/api'
+import { AppApi } from '@shared/api'
 
 interface ApiClientOptions {
   readonly baseUrl?: string
@@ -18,7 +18,7 @@ export const makeApiClient = ({
     : FetchHttpClient.layer
 
   return Effect.runSync(
-    HttpApiClient.make(ShadowApi, { baseUrl }).pipe(
+    HttpApiClient.make(AppApi, { baseUrl }).pipe(
       Effect.provide(httpClientLayer),
     ),
   )

@@ -4,7 +4,7 @@
 
 **Goal:** Shadowスタックのバックエンド、API contract、browser clientをHonoからEffect HTTP APIへ全面移行し、既存のHTTP contractと画面動作を維持する。
 
-**Architecture:** `shared/api`へEffect Schemaと`ShadowApi` contractを配置し、serverとbrowserが同じruntime valueを参照する。ServerはDatabase、TaskService、HttpApi handlerをLayerで合成し、TanStack Startへ標準Web handlerを渡す。Browserは`HttpApiClient.make`で生成したclientを`Effect.runPromise`から実行する。
+**Architecture:** `shared/api`へEffect Schemaと`AppApi` contractを配置し、serverとbrowserが同じruntime valueを参照する。ServerはDatabase、TaskService、HttpApi handlerをLayerで合成し、TanStack Startへ標準Web handlerを渡す。Browserは`HttpApiClient.make`で生成したclientを`Effect.runPromise`から実行する。
 
 **Tech Stack:** TypeScript 6、Effect 3.21、`@effect/platform` 0.97、TanStack Start、Cloudflare Workers、Drizzle ORM、Turso/libSQL、Vitest、Bun
 
@@ -329,7 +329,7 @@ git commit -m "feat(shadow): add Effect API schemas"
 
 **Interfaces:**
 - Consumes: Task 1のSchemaと`ApiError`
-- Produces: `HealthCheckApi`, `TaskApi`, `ShadowApi`
+- Produces: `HealthCheckApi`, `TaskApi`, `AppApi`
 - Produces endpoint names: `healthCheck.check`, `tasks.list`, `tasks.get`, `tasks.create`, `tasks.update`, `tasks.remove`
 
 - [ ] **Step 1: API metadataの失敗testを書く**
@@ -338,18 +338,18 @@ git commit -m "feat(shadow): add Effect API schemas"
 
 ```typescript
 import { describe, expect, it } from 'vitest'
-import { ShadowApi } from './index'
+import { AppApi } from './index'
 
-describe('ShadowApi', () => {
+describe('AppApi', () => {
   it('declares the health check and task groups', () => {
-    expect(Object.keys(ShadowApi.groups)).toEqual([
+    expect(Object.keys(AppApi.groups)).toEqual([
       'healthCheck',
       'tasks',
     ])
   })
 
   it('declares every existing task operation', () => {
-    expect(Object.keys(ShadowApi.groups.tasks.endpoints)).toEqual([
+    expect(Object.keys(AppApi.groups.tasks.endpoints)).toEqual([
       'list',
       'get',
       'create',
@@ -359,7 +359,7 @@ describe('ShadowApi', () => {
   })
 
   it('keeps the existing methods and paths', () => {
-    const endpoints = ShadowApi.groups.tasks.endpoints
+    const endpoints = AppApi.groups.tasks.endpoints
 
     expect([endpoints.list.method, endpoints.list.path]).toEqual([
       'GET',
@@ -458,7 +458,7 @@ export class TaskApi extends HttpApiGroup.make('tasks')
       .addError(ApiError.Internal, { status: 500 }),
   ) {}
 
-export class ShadowApi extends HttpApi.make('shadow')
+export class AppApi extends HttpApi.make('app')
   .add(HealthCheckApi)
   .add(TaskApi)
   .addError(ApiError.Validation, { status: 400 })
@@ -858,7 +858,7 @@ git commit -m "feat(shadow): add Effect service layers"
 - Test: `shadow/server/handler.test.ts`
 
 **Interfaces:**
-- Consumes: `ShadowApi`, `TaskService`, `TaskServiceLive`, `DatabaseLive`
+- Consumes: `AppApi`, `TaskService`, `TaskServiceLive`, `DatabaseLive`
 - Produces: `HealthCheckHandlersLive`, `TaskHandlersLive`, `ApiHandlersLive`
 - Produces: `makeApiHandler(taskServiceLayer)`
 - Produces: `handleApiRequest(request)`
@@ -1078,10 +1078,10 @@ Expected: `Cannot find module './handler'`でFAILする。
 ```typescript
 import { HttpApiBuilder } from '@effect/platform'
 import { Effect } from 'effect'
-import { ShadowApi } from '@shared/api'
+import { AppApi } from '@shared/api'
 
 export const HealthCheckHandlersLive = HttpApiBuilder.group(
-  ShadowApi,
+  AppApi,
   'healthCheck',
   (handlers) =>
     handlers.handle('check', () =>
@@ -1097,11 +1097,11 @@ export const HealthCheckHandlersLive = HttpApiBuilder.group(
 ```typescript
 import { HttpApiBuilder } from '@effect/platform'
 import { Effect } from 'effect'
-import { ShadowApi } from '@shared/api'
+import { AppApi } from '@shared/api'
 import { TaskService } from './service'
 
 export const TaskHandlersLive = HttpApiBuilder.group(
-  ShadowApi,
+  AppApi,
   'tasks',
   (handlers) =>
     handlers
@@ -1144,7 +1144,7 @@ import {
   HttpServerResponse,
 } from '@effect/platform'
 import { Effect, Layer } from 'effect'
-import { ShadowApi } from '@shared/api'
+import { AppApi } from '@shared/api'
 import { ApiError } from '@shared/api/errors'
 import { HealthCheckHandlersLive } from '@server/modules/health-check/handlers'
 import { TaskHandlersLive } from '@server/modules/task/handlers'
@@ -1156,7 +1156,7 @@ const ApiHandlersLive = Layer.mergeAll(
 )
 
 const ErrorMiddlewareLive = HttpApiBuilder.middleware(
-  ShadowApi,
+  AppApi,
   (httpApp) =>
     httpApp.pipe(
       Effect.catchTag('HttpApiDecodeError', (error) =>
@@ -1174,7 +1174,7 @@ export const makeApiHandler = <E>(
   const handlers = ApiHandlersLive.pipe(
     Layer.provide(taskServiceLayer),
   )
-  const api = HttpApiBuilder.api(ShadowApi).pipe(
+  const api = HttpApiBuilder.api(AppApi).pipe(
     Layer.provide(handlers),
   )
   const web = HttpApiBuilder.toWebHandler(
@@ -1290,7 +1290,7 @@ git commit -m "feat(shadow): serve Effect HTTP API"
 - Test: `shadow/src/lib/api-client.test.ts`
 
 **Interfaces:**
-- Consumes: `ShadowApi`, `FetchHttpClient.layer`, `makeApiHandler`
+- Consumes: `AppApi`, `FetchHttpClient.layer`, `makeApiHandler`
 - Produces: `makeApiClient(baseUrl)`
 - Produces: `apiClient`
 - Produces client methods: `tasks.list`, `tasks.get`, `tasks.create`, `tasks.update`, `tasks.remove`
@@ -1442,10 +1442,10 @@ import {
   HttpApiClient,
 } from '@effect/platform'
 import { Effect } from 'effect'
-import { ShadowApi } from '@shared/api'
+import { AppApi } from '@shared/api'
 
 export const makeApiClient = (baseUrl: string) =>
-  HttpApiClient.make(ShadowApi, { baseUrl })
+  HttpApiClient.make(AppApi, { baseUrl })
 
 export const apiClient = Effect.runSync(
   makeApiClient(import.meta.env.VITE_API_URL ?? '').pipe(
@@ -1641,7 +1641,7 @@ Handler templateは次の形を生成する。
 ```typescript
 export const {{ inputs.name | pascal }}HandlersLive =
   HttpApiBuilder.group(
-    ShadowApi,
+    AppApi,
     '{{ inputs.name | camel }}',
     (handlers) =>
       handlers.handle('list', ({ urlParams }) =>
@@ -1664,7 +1664,7 @@ Service templateは`Context.Tag`、service shape、`Layer.effect`を生成し、
 - serviceは`Context.Tag`とLive Layer
 - request、response、errorはEffect Schema
 - browserは`HttpApiClient`を使用
-- module登録は`ShadowApi`とhandler Layerの両方へ追加
+- module登録は`AppApi`とhandler Layerの両方へ追加
 - DB operationは`Effect.tryPromise`でtyped errorへ変換
 
 Hono class、router chain、Zod namespaceの説明を削除する。

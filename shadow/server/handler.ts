@@ -3,7 +3,7 @@ import { Layer } from 'effect'
 import { HealthCheckHandlersLive } from '@server/modules/health-check/handlers'
 import { TaskHandlersLive } from '@server/modules/task/handlers'
 import { TaskService } from '@server/modules/task/service'
-import { ShadowApi } from '@shared/api'
+import { AppApi } from '@shared/api'
 import { ApiError } from '@shared/api/errors'
 
 const ApiHandlersLive = Layer.mergeAll(
@@ -15,7 +15,7 @@ export const makeApiHandler = <E>(
   taskServiceLayer: Layer.Layer<TaskService, E, never>,
 ) => {
   const handlers = ApiHandlersLive.pipe(Layer.provide(taskServiceLayer))
-  const api = HttpApiBuilder.api(ShadowApi).pipe(Layer.provide(handlers))
+  const api = HttpApiBuilder.api(AppApi).pipe(Layer.provide(handlers))
   const web = HttpApiBuilder.toWebHandler(
     Layer.mergeAll(api, HttpServer.layerContext),
   )

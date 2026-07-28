@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { ShadowApi } from './index'
+import { AppApi } from './index'
 
-describe('ShadowApi', () => {
+describe('AppApi', () => {
   it('declares the health check and task groups', () => {
-    expect(Object.keys(ShadowApi.groups)).toEqual(['healthCheck', 'tasks'])
+    expect(Object.keys(AppApi.groups)).toEqual(['healthCheck', 'tasks'])
   })
 
   it('declares every existing task operation', () => {
-    expect(Object.keys(ShadowApi.groups.tasks.endpoints)).toEqual([
+    expect(Object.keys(AppApi.groups.tasks.endpoints)).toEqual([
       'getTasks',
       'getTask',
       'createTask',
@@ -17,7 +17,7 @@ describe('ShadowApi', () => {
   })
 
   it('keeps the existing methods and paths', () => {
-    const endpoints = ShadowApi.groups.tasks.endpoints
+    const endpoints = AppApi.groups.tasks.endpoints
 
     expect([endpoints.getTasks.method, endpoints.getTasks.path]).toEqual([
       'GET',

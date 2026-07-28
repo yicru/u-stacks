@@ -85,7 +85,7 @@ shadow/
 
 ## API contract
 
-`ShadowApi`はHealth Check groupとTask groupを持ち、API全体へ`/api` prefixを付ける。
+`AppApi`はHealth Check groupとTask groupを持ち、API全体へ`/api` prefixを付ける。
 
 ### Health Check
 
@@ -173,7 +173,7 @@ production layerは次の順で依存を解決する。
 DatabaseLive
   → TaskServiceLive
   → HealthCheckHandlersLive + TaskHandlersLive
-  → ShadowApiLive
+  → AppApiLive
   → Web handler
 ```
 
@@ -193,7 +193,7 @@ Effect programの内部ではtyped errorとLayerを維持する。
 
 ## Browser client
 
-`HttpApiClient.make`は`ShadowApi`からbrowser clientを生成する。
+`HttpApiClient.make`は`AppApi`からbrowser clientを生成する。
 
 clientには`FetchHttpClient.layer`を提供する。
 
@@ -230,7 +230,7 @@ CRUD moduleはshared contract、service TagとLive Layer、handler Layerを生�
 
 生成物はHono、Zod、`drizzle-zod`をimportしない。
 
-module登録手順は`ShadowApi`へのgroup追加とproduction Layerへのhandler追加を案内する。
+module登録手順は`AppApi`へのgroup追加とproduction Layerへのhandler追加を案内する。
 
 ## Test方針
 
@@ -265,7 +265,7 @@ production codeを追加する前に、そのbehaviorを示す失敗testを追�
 
 ### Browser client test
 
-- `ShadowApi`から生成したclientでTask endpointを呼べる
+- `AppApi`から生成したclientでTask endpointを呼べる
 - responseをshared Schemaでdecodeする
 - non-2xx responseをtyped failureとして扱う
 

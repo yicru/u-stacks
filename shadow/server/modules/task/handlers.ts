@@ -1,10 +1,10 @@
 import { HttpApiBuilder } from '@effect/platform'
 import { Effect } from 'effect'
-import { ShadowApi } from '@shared/api'
+import { AppApi } from '@shared/api'
 import { TaskService } from './service'
 
 export const TaskHandlersLive = HttpApiBuilder.group(
-  ShadowApi,
+  AppApi,
   'tasks',
   (handlers) =>
     handlers

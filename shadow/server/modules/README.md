@@ -67,7 +67,7 @@ export class ProjectApi extends HttpApiGroup.make('projects').add(
 ) {}
 ```
 
-各resourceの`HttpApiGroup`を`shared/api/index.ts`へimportし、`ShadowApi`へ追加する。`index.ts`にはendpoint定義を置かない。すべてのpathは`ShadowApi.prefix('/api')`の配下になる。
+各resourceの`HttpApiGroup`を`shared/api/index.ts`へimportし、`AppApi`へ追加する。`index.ts`にはendpoint定義を置かない。すべてのpathは`AppApi.prefix('/api')`の配下になる。
 
 ## Handler
 
@@ -76,11 +76,11 @@ handlerはrequestをdecode済みの値として受け取り、serviceへ委譲�
 ```typescript
 import { HttpApiBuilder } from '@effect/platform'
 import { Effect } from 'effect'
-import { ShadowApi } from '@shared/api'
+import { AppApi } from '@shared/api'
 import { ProjectService } from './service'
 
 export const ProjectHandlersLive = HttpApiBuilder.group(
-  ShadowApi,
+  AppApi,
   'projects',
   (handlers) =>
     handlers.handle('createProject', ({ payload }) =>
@@ -147,7 +147,7 @@ DB Promiseの失敗は`Effect.tryPromise`で捕捉し、外部contractのtyped e
 
 新しいmoduleは次の3箇所へ登録する。
 
-1. `shared/api/index.ts`の`ShadowApi`へAPI groupを追加
+1. `shared/api/index.ts`の`AppApi`へAPI groupを追加
 2. `server/handler.ts`へhandler Layerを追加し、factoryが受け取るservice Layerの要件を拡張
 3. `server/index.ts`でservice Live Layerへ`DatabaseLive`を供給
 

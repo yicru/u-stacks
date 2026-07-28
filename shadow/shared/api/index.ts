@@ -3,7 +3,7 @@ import { ApiError } from './errors'
 import { HealthCheckApi } from './health-check'
 import { TaskApi } from './task'
 
-export class ShadowApi extends HttpApi.make('shadow')
+export class AppApi extends HttpApi.make('app')
   .add(HealthCheckApi)
   .add(TaskApi)
   .addError(ApiError.Validation, { status: 400 })
