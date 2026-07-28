@@ -1,14 +1,5 @@
 import { Schema } from 'effect'
-
-const Page = Schema.NumberFromString.pipe(
-  Schema.int(),
-  Schema.greaterThanOrEqualTo(1),
-)
-
-const PerPage = Schema.NumberFromString.pipe(
-  Schema.int(),
-  Schema.between(1, 50),
-)
+import { PaginationMeta, PaginationQuery } from './pagination'
 
 export const Task = Schema.Struct({
   id: Schema.String,
@@ -19,19 +10,8 @@ export const Task = Schema.Struct({
 })
 export type Task = Schema.Schema.Type<typeof Task>
 
-export const TaskListQuery = Schema.Struct({
-  page: Schema.optionalWith(Page, { default: () => 1 }),
-  perPage: Schema.optionalWith(PerPage, { default: () => 10 }),
-})
+export const TaskListQuery = PaginationQuery
 export type TaskListQuery = Schema.Schema.Type<typeof TaskListQuery>
-
-export const PaginationMeta = Schema.Struct({
-  page: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1)),
-  perPage: Schema.Number.pipe(Schema.int(), Schema.between(1, 50)),
-  total: Schema.NonNegativeInt,
-  totalPages: Schema.NonNegativeInt,
-})
-export type PaginationMeta = Schema.Schema.Type<typeof PaginationMeta>
 
 export const TaskListResponse = Schema.Struct({
   data: Schema.Array(Task),

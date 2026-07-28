@@ -1,4 +1,4 @@
-import type { PaginationMeta } from '@shared/api/task'
+import type { PaginationMeta } from '@shared/api/pagination'
 import type { SQL } from 'drizzle-orm'
 import type { SQLiteColumn, SQLiteSelect } from 'drizzle-orm/sqlite-core'
 

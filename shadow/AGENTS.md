@@ -9,6 +9,7 @@ shadow/
 ├── shared/api/
 │   ├── index.ts                   # ShadowApi and HttpApiGroup registration
 │   ├── errors.ts                  # Shared error schemas and constructors
+│   ├── pagination.ts              # Shared pagination query and metadata schemas
 │   └── {resource}.ts              # Request, response, path, and payload schemas
 ├── src/
 │   ├── routes/
@@ -58,6 +59,7 @@ shadow/
 - Package manager: bun only
 - Path aliases: `@/*` → `src/*`, `@server/*` → `server/*`, `@shared/*` → `shared/*`, `#/*` → `src/*`
 - API source of truth: `shared/api`
+- Pagination contract: reuse `shared/api/pagination.ts` across resource modules
 - Request, response, and error validation: Effect Schema
 - HTTP server: `HttpApiBuilder` and `HttpApiBuilder.toWebHandler`
 - Browser client: `HttpApiClient.make` with `FetchHttpClient`

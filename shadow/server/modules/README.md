@@ -8,6 +8,7 @@ Shadow のAPIは、共有contract、HTTP handler、service、databaseをEffect�
 shared/api/
 ├── errors.ts
 ├── index.ts
+├── pagination.ts
 └── {name}.ts
 server/
 ├── db/
@@ -25,6 +26,7 @@ src/lib/api-client.ts
 
 | ファイル                            | 責務                                                  |
 | ----------------------------------- | ----------------------------------------------------- |
+| `shared/api/pagination.ts`          | module共通のpagination queryとresponse meta           |
 | `shared/api/{name}.ts`              | Effect Schemaと`HttpApiGroup`による公開contract       |
 | `server/modules/{name}/handlers.ts` | `HttpApiBuilder.group`によるHTTPとserviceの接続       |
 | `server/modules/{name}/service.ts`  | `Context.Tag`とLive Layerによるdomain/DB処理          |
@@ -36,6 +38,7 @@ src/lib/api-client.ts
 ## Contract
 
 request、response、errorは`shared/api`のEffect Schemaで定義する。型はSchemaから導出し、interfaceとの二重管理をしない。
+一覧APIは`shared/api/pagination.ts`の`PaginationQuery`と`PaginationMeta`を再利用する。
 
 ```typescript
 import { HttpApiEndpoint, HttpApiGroup } from '@effect/platform'

@@ -15,16 +15,7 @@ import {
 } from '@effect/platform'
 import { Schema } from 'effect'
 import { ApiError } from './errors'
-
-const Page = Schema.NumberFromString.pipe(
-  Schema.int(),
-  Schema.greaterThanOrEqualTo(1),
-)
-
-const PerPage = Schema.NumberFromString.pipe(
-  Schema.int(),
-  Schema.between(1, 50),
-)
+import { PaginationMeta, PaginationQuery } from './pagination'
 
 export const {{ inputs.name | pascal }} = Schema.Struct({
   id: Schema.String,
@@ -36,25 +27,14 @@ export type {{ inputs.name | pascal }} = Schema.Schema.Type<
   typeof {{ inputs.name | pascal }}
 >
 
-export const {{ inputs.name | pascal }}ListQuery = Schema.Struct({
-  page: Schema.optionalWith(Page, { default: () => 1 }),
-  perPage: Schema.optionalWith(PerPage, { default: () => 10 }),
-})
+export const {{ inputs.name | pascal }}ListQuery = PaginationQuery
 export type {{ inputs.name | pascal }}ListQuery = Schema.Schema.Type<
   typeof {{ inputs.name | pascal }}ListQuery
 >
 
 export const {{ inputs.name | pascal }}ListResponse = Schema.Struct({
   data: Schema.Array({{ inputs.name | pascal }}),
-  meta: Schema.Struct({
-    page: Schema.Number.pipe(
-      Schema.int(),
-      Schema.greaterThanOrEqualTo(1),
-    ),
-    perPage: Schema.Number.pipe(Schema.int(), Schema.between(1, 50)),
-    total: Schema.NonNegativeInt,
-    totalPages: Schema.NonNegativeInt,
-  }),
+  meta: PaginationMeta,
 })
 export type {{ inputs.name | pascal }}ListResponse = Schema.Schema.Type<
   typeof {{ inputs.name | pascal }}ListResponse
