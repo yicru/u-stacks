@@ -1,4 +1,4 @@
-import { parseResponse } from 'hono/client'
+import { Effect } from 'effect'
 import { createFileRoute } from '@tanstack/react-router'
 import { CreateTaskForm } from '@/features/task/components/create-task-form'
 import { TaskList } from '@/features/task/components/task-list'
@@ -7,8 +7,11 @@ import { Separator } from '@/components/ui/separator'
 
 export const Route = createFileRoute('/')({
   loader: async () => {
-    const result = await parseResponse(apiClient.api.tasks.$get({ query: {} }))
-    return result
+    return Effect.runPromise(
+      apiClient.tasks.getTasks({
+        urlParams: { page: 1, perPage: 10 },
+      }),
+    )
   },
   component: App,
 })

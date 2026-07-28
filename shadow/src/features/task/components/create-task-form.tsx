@@ -1,4 +1,4 @@
-import { parseResponse } from 'hono/client'
+import { Effect } from 'effect'
 import { useForm } from '@tanstack/react-form'
 import { useRouter } from '@tanstack/react-router'
 import { z } from 'zod'
@@ -26,9 +26,9 @@ export function CreateTaskForm() {
     },
     onSubmit: async ({ value }) => {
       try {
-        await parseResponse(
-          apiClient.api.tasks.$post({
-            json: { title: value.title },
+        await Effect.runPromise(
+          apiClient.tasks.createTask({
+            payload: { title: value.title },
           }),
         )
         form.reset()

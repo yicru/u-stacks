@@ -1,12 +1,8 @@
-import { createApp } from './factory'
-import { HealthCheckApp } from '@server/modules/health-check'
-import { TaskApp } from '@server/modules/task'
+import { Layer } from 'effect'
+import { DatabaseLive } from '@server/db/live'
+import { TaskServiceLive } from '@server/modules/task/service'
+import { makeApiHandler } from './handler'
 
-const app = createApp().basePath('/api')
+const TaskServiceProduction = TaskServiceLive.pipe(Layer.provide(DatabaseLive))
 
-const routes = app
-  .route('/health-check', HealthCheckApp)
-  .route('/tasks', TaskApp)
-
-export default app
-export type AppType = typeof routes
+export const { dispose, handler } = makeApiHandler(TaskServiceProduction)

@@ -1,5 +1,4 @@
-import type { InferResponseType } from 'hono/client'
-import { parseResponse } from 'hono/client'
+import { Effect } from 'effect'
 import { useRouter } from '@tanstack/react-router'
 import { useTransition } from 'react'
 import { toast } from 'sonner'
@@ -16,12 +15,10 @@ import {
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/lib/date'
 import { apiClient } from '@/lib/api-client'
-
-type TasksResponse = InferResponseType<typeof apiClient.api.tasks.$get>
-type Task = TasksResponse['data'][number]
+import type { Task } from '@shared/api/task'
 
 interface TaskListProps {
-  tasks: TasksResponse['data']
+  tasks: ReadonlyArray<Task>
 }
 
 export function TaskList({ tasks }: TaskListProps) {
@@ -31,10 +28,10 @@ export function TaskList({ tasks }: TaskListProps) {
   const handleToggle = (task: Task) => {
     startTransition(async () => {
       try {
-        await parseResponse(
-          apiClient.api.tasks[':id'].$put({
-            param: { id: task.id },
-            json: { done: !task.done },
+        await Effect.runPromise(
+          apiClient.tasks.updateTask({
+            path: { id: task.id },
+            payload: { done: !task.done },
           }),
         )
         router.invalidate()
@@ -47,9 +44,9 @@ export function TaskList({ tasks }: TaskListProps) {
   const handleDelete = (id: string) => {
     startTransition(async () => {
       try {
-        await parseResponse(
-          apiClient.api.tasks[':id'].$delete({
-            param: { id },
+        await Effect.runPromise(
+          apiClient.tasks.deleteTask({
+            path: { id },
           }),
         )
         router.invalidate()

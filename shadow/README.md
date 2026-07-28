@@ -1,18 +1,21 @@
 # Shadow Stack
 
-A full-stack starter built with TanStack Start, Hono, Drizzle, Turso, and Cloudflare Workers.
+A full-stack starter built with TanStack Start, Effect HTTP API, Drizzle, Turso, and Cloudflare Workers.
 
-Shadow is designed for building edge-first applications with a type-safe API layer, a modern React UI stack, and a setup flow that can bootstrap Turso interactively.
+Shadow is designed for edge-first applications with a runtime-validated API contract shared by the server and browser client.
 
 ## Features
 
 - TanStack Start with file-based routing
-- Hono API mounted under `/api`
+- Effect HTTP API mounted under `/api`
+- Shared Effect Schema for request, response, and error contracts
+- Effect `Context.Tag` and Layer-based services
+- Generated `HttpApiClient` for type-safe browser calls
 - Drizzle ORM with Turso / libSQL
 - Cloudflare Workers deployment via Wrangler
 - shadcn/ui on the Base UI registry
 - Tailwind CSS v4
-- Vitest + Testing Library
+- Vitest integration, service, contract, and client tests
 - Interactive `bun run setup` for app rename and Turso configuration
 
 ## Tech Stack
@@ -20,7 +23,7 @@ Shadow is designed for building edge-first applications with a type-safe API lay
 | Layer         | Technology                        |
 | ------------- | --------------------------------- |
 | App framework | TanStack Start                    |
-| API           | Hono                              |
+| API           | Effect HTTP API + Effect Schema   |
 | Database      | Turso + Drizzle ORM               |
 | Runtime       | Cloudflare Workers                |
 | UI            | React 19 + shadcn/ui (Base UI)    |
@@ -38,12 +41,11 @@ bun run db:migrate
 bun run dev
 ```
 
-Open `https://my-app.localhost` after the dev server starts. On first run,
-portless may ask to trust a local development CA.
+Open `https://my-app.localhost` after the dev server starts. On first run, portless may ask to trust a local development CA.
 
 ## Setup Flow
 
-`bun run setup` updates the app name across the template and can also guide you through Turso setup.
+`bun run setup` updates the app name across the template and can guide you through Turso setup.
 
 During setup you can:
 
@@ -54,9 +56,7 @@ During setup you can:
 - write `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` into `.dev.vars`
 - optionally copy the same credentials into `.dev.vars.production`
 
-If you skip the Turso step, create `.dev.vars` yourself before running database commands or starting local development.
-
-Example `.dev.vars`:
+If you skip the Turso step, create `.dev.vars` before running database commands or local development.
 
 ```bash
 TURSO_DATABASE_URL=libsql://your-db.turso.io
@@ -65,42 +65,52 @@ TURSO_AUTH_TOKEN=your-auth-token
 
 ## Available Commands
 
-| Command                   | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `bun run setup`           | Initialize the template and optionally configure Turso |
-| `bun run dev`             | Start the local dev server through portless            |
-| `bun run build`           | Build for production                                   |
-| `bun run preview`         | Build and preview the production output                |
-| `bun run test`            | Run tests with Vitest                                  |
-| `bun run lint`            | Run typecheck, lint, and format checks                 |
-| `bun run format`          | Apply lint fixes and formatting                        |
-| `bun run db:generate`     | Generate Drizzle migrations from schema changes        |
-| `bun run db:migrate`      | Push schema changes using `.dev.vars`                  |
-| `bun run db:migrate:prod` | Push schema changes using `.dev.vars.production`       |
-| `bun run db:studio`       | Open Drizzle Studio                                    |
-| `bun run generate:module` | Scaffold a new server module via Scaffdog              |
-| `bun run deploy`          | Build and deploy to Cloudflare Workers                 |
-| `bun run cf-typegen`      | Regenerate Wrangler environment types                  |
+| Command                   | Description                                                 |
+| ------------------------- | ----------------------------------------------------------- |
+| `bun run setup`           | Initialize the template and optionally configure Turso      |
+| `bun run dev`             | Start the local dev server through portless                 |
+| `bun run build`           | Build for production                                        |
+| `bun run preview`         | Build and preview the production output                     |
+| `bun run test`            | Run tests with Vitest                                       |
+| `bun run lint`            | Run typecheck, lint, and format checks                      |
+| `bun run format`          | Apply lint fixes and formatting                             |
+| `bun run db:generate`     | Generate Drizzle migrations from schema changes             |
+| `bun run db:migrate`      | Push schema changes using `.dev.vars`                       |
+| `bun run db:migrate:prod` | Push schema changes using `.dev.vars.production`            |
+| `bun run db:studio`       | Open Drizzle Studio                                         |
+| `bun run generate:module` | Scaffold an Effect API contract, handler, service, and test |
+| `bun run deploy`          | Build and deploy to Cloudflare Workers                      |
+| `bun run cf-typegen`      | Regenerate Wrangler environment types                       |
 
 ## Project Structure
 
 ```text
 shadow/
+├── shared/api/          # Effect Schema and HttpApi contract
 ├── src/
-│   ├── routes/          # TanStack Start routes
+│   ├── routes/          # TanStack Start routes and /api bridge
 │   ├── features/        # Feature UI modules
 │   ├── components/ui/   # shadcn/ui (Base UI)
-│   └── lib/             # Client utilities and API client
+│   └── lib/             # HttpApiClient and browser utilities
 ├── server/
-│   ├── modules/         # Hono modules (controller/service/model)
-│   ├── db/              # Drizzle schema and database setup
-│   └── lib/             # Shared server utilities
-├── scripts/             # Template setup scripts
+│   ├── modules/         # HttpApiBuilder handlers and Effect services
+│   ├── db/              # Database Tag, Live Layer, and Drizzle schema
+│   ├── handler.ts       # Effect API Web handler factory
+│   └── index.ts         # Production Layer composition
+├── scripts/
 │   └── setup.ts
 ├── drizzle.config.ts
 ├── vitest.config.ts
 └── wrangler.jsonc
 ```
+
+## API Architecture
+
+`shared/api` is the source of truth. The server uses the contract with `HttpApiBuilder`, while the browser creates its client with `HttpApiClient.make`. Request and response validation therefore use the same Effect Schema on both sides.
+
+Services depend on `Database` through `Context.Tag`. Production implementations are assembled with Layer, while tests inject an in-memory database or a test service Layer.
+
+See `server/modules/README.md` for module design and registration rules.
 
 ## Deployment
 
@@ -110,11 +120,12 @@ Production deploys use `.dev.vars.production` via `dotenvx`:
 bun run deploy
 ```
 
-Make sure production credentials are prepared before deploying or running `bun run db:migrate:prod`.
+Prepare production credentials before deploying or running `bun run db:migrate:prod`.
 
 ## Notes
 
 - Package manager: `bun`
-- The project pins `@libsql/client` to `0.15.15` for Cloudflare Workers compatibility
-- `src/` must not import from `server/` directly; use the typed Hono client instead
+- `@libsql/client` is pinned to `0.15.15` for Cloudflare Workers compatibility
+- `src/` must not import `server/` runtime modules; use the shared contract and `HttpApiClient`
+- The only bridge exception is `src/routes/api/$.ts`, which forwards Web requests to the server handler
 - `worker-configuration.d.ts` and `src/routeTree.gen.ts` are generated files
