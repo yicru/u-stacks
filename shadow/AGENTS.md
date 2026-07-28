@@ -69,7 +69,7 @@ shadow/
 - Database resources: scoped Layer with acquire/release
 - DB Promise failures: `Effect.tryPromise`, logged and mapped to typed API errors
 - Data fetching: TanStack Router loaders plus `router.invalidate()`
-- Toolchain: Vite+ with oxlint and oxfmt
+- Toolchain: Vite+ with oxlint, oxfmt, React Doctor, and Fallow
 - Tests: Vitest beside contracts, services, handler, and client
 - Icons: `@hugeicons/react` and `@hugeicons/core-free-icons`
 - Date display: `src/lib/date.ts` `formatDateTime()`
@@ -127,6 +127,10 @@ bun run dev
 bun run build
 bun run lint
 bun run format
+bun run doctor
+bun run fallow
+bun run fallow:audit
+bun run quality
 bun run test
 bun run generate:module
 bun run db:generate

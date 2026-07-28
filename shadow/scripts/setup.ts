@@ -26,6 +26,12 @@ type PortlessConfig =
       proxy?: boolean
     }
 
+type GroupSelection =
+  | { kind: 'skip' }
+  | { kind: 'group'; value: string }
+  | { kind: 'manual' }
+  | { kind: 'invalid' }
+
 const args = process.argv.slice(2).filter((arg) => !arg.endsWith('setup.ts'))
 const cliName = args[0]?.trim()
 const defaultAppName = toKebabCase(basename(ROOT)) || 'shadow'
@@ -58,12 +64,7 @@ function configureTurso(projectName: string): boolean {
     return false
   }
 
-  if (!hasCommand('turso')) {
-    console.log('ℹ️ Turso CLI was not found. Falling back to manual env input.')
-    return configureTursoManually()
-  }
-
-  if (!ensureTursoLogin()) {
+  if (!canConfigureTursoAutomatically()) {
     return configureTursoManually()
   }
 
@@ -77,38 +78,25 @@ function configureTurso(projectName: string): boolean {
     defaultDatabaseName,
   )
 
+  return configureTursoWithCli(databaseName, shouldCreateDatabase)
+}
+
+function canConfigureTursoAutomatically(): boolean {
+  if (hasCommand('turso')) {
+    return ensureTursoLogin()
+  }
+
+  console.log('ℹ️ Turso CLI was not found. Falling back to manual env input.')
+  return false
+}
+
+function configureTursoWithCli(
+  databaseName: string,
+  shouldCreateDatabase: boolean,
+): boolean {
   try {
-    if (shouldCreateDatabase) {
-      const groupName = selectTursoGroup()
-      const createArgs = ['db', 'create', databaseName]
-
-      if (groupName) {
-        createArgs.push('--group', groupName)
-      }
-
-      createArgs.push('--wait')
-      runTursoCommand(createArgs, 'Failed to create Turso database.')
-    }
-
-    const databaseUrl = runTursoCommand(
-      ['db', 'show', databaseName, '--url'],
-      'Failed to fetch Turso database URL.',
-    )
-    const authToken = runTursoCommand(
-      ['db', 'tokens', 'create', databaseName],
-      'Failed to create Turso auth token.',
-    )
-
-    writeTursoEnv(DEV_VARS_PATH, databaseUrl, authToken)
-
-    if (
-      confirm(
-        'Also write the same Turso values to .dev.vars.production? This can point deploys at the same DB. (y/N):',
-        false,
-      )
-    ) {
-      writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
-    }
+    createTursoDatabase(databaseName, shouldCreateDatabase)
+    writeTursoCredentials(getTursoCredentials(databaseName))
 
     return true
   } catch (error) {
@@ -116,6 +104,51 @@ function configureTurso(projectName: string): boolean {
       error instanceof Error ? error.message : 'Turso setup failed.'
     console.error(message)
     return configureTursoManually()
+  }
+}
+
+function createTursoDatabase(
+  databaseName: string,
+  shouldCreateDatabase: boolean,
+): void {
+  if (!shouldCreateDatabase) {
+    return
+  }
+
+  const groupName = selectTursoGroup()
+  const groupArgs = groupName ? ['--group', groupName] : []
+  runTursoCommand(
+    ['db', 'create', databaseName, ...groupArgs, '--wait'],
+    'Failed to create Turso database.',
+  )
+}
+
+function getTursoCredentials(databaseName: string) {
+  return {
+    databaseUrl: runTursoCommand(
+      ['db', 'show', databaseName, '--url'],
+      'Failed to fetch Turso database URL.',
+    ),
+    authToken: runTursoCommand(
+      ['db', 'tokens', 'create', databaseName],
+      'Failed to create Turso auth token.',
+    ),
+  }
+}
+
+function writeTursoCredentials({
+  databaseUrl,
+  authToken,
+}: ReturnType<typeof getTursoCredentials>): void {
+  writeTursoEnv(DEV_VARS_PATH, databaseUrl, authToken)
+
+  if (
+    confirm(
+      'Also write the same Turso values to .dev.vars.production? This can point deploys at the same DB. (y/N):',
+      false,
+    )
+  ) {
+    writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
   }
 }
 
@@ -173,27 +206,52 @@ function selectGroupFromChoices(
   const answer = ask(
     `Select a Turso group [1-${manualOption}] or type a group name directly (Enter to skip):`,
   )
+  const selection = parseGroupSelection(answer, groups, manualOption)
 
-  if (!answer) {
+  if (selection.kind === 'skip') {
     return null
+  }
+  if (selection.kind === 'group') {
+    return selection.value
+  }
+  if (selection.kind === 'manual') {
+    return askRequired('Enter Turso group name:', '')
+  }
+
+  console.log('Please choose one of the listed options or type a group name.')
+  return selectGroupFromChoices(groups, manualOption)
+}
+
+function parseGroupSelection(
+  answer: string | null,
+  groups: string[],
+  manualOption: number,
+): GroupSelection {
+  if (!answer) {
+    return { kind: 'skip' }
   }
 
   const selectedIndex = Number(answer)
-
-  if (Number.isInteger(selectedIndex)) {
-    if (selectedIndex >= 1 && selectedIndex <= groups.length) {
-      return groups[selectedIndex - 1]
-    }
-
-    if (selectedIndex === manualOption) {
-      return askRequired('Enter Turso group name:', '')
-    }
-
-    console.log('Please choose one of the listed options or type a group name.')
-    return selectGroupFromChoices(groups, manualOption)
+  if (!Number.isInteger(selectedIndex)) {
+    return { kind: 'group', value: answer }
   }
 
-  return answer
+  return parseGroupIndex(selectedIndex, groups, manualOption)
+}
+
+function parseGroupIndex(
+  selectedIndex: number,
+  groups: string[],
+  manualOption: number,
+): GroupSelection {
+  const selectedGroup = groups[selectedIndex - 1]
+  if (selectedGroup) {
+    return { kind: 'group', value: selectedGroup }
+  }
+  if (selectedIndex === manualOption) {
+    return { kind: 'manual' }
+  }
+  return { kind: 'invalid' }
 }
 
 function askOptionalGroupName(): string | null {
@@ -223,44 +281,52 @@ function getTursoGroups(): string[] {
 }
 
 function ensureTursoLogin(): boolean {
-  const whoami = spawnSync('turso', ['auth', 'whoami'], {
-    cwd: ROOT,
-    encoding: 'utf-8',
-  })
-  const whoamiOutput = [whoami.stdout, whoami.stderr].join('\n').trim()
-
-  if (whoami.status === 0 && !isTursoAuthMessage(whoamiOutput)) {
+  if (isTursoAuthenticated()) {
     return true
   }
 
   console.log('ℹ️ You are not logged in to Turso.')
 
-  if (!confirm('Run `turso auth login` now? (Y/n):', true)) {
+  if (!requestTursoLogin()) {
     return false
   }
 
-  const login = spawnSync('turso', ['auth', 'login'], {
-    cwd: ROOT,
-    stdio: 'inherit',
-  })
-
-  if (login.status !== 0) {
-    console.error('Failed to log in to Turso.')
-    return false
-  }
-
-  const verify = spawnSync('turso', ['auth', 'whoami'], {
-    cwd: ROOT,
-    encoding: 'utf-8',
-  })
-  const verifyOutput = [verify.stdout, verify.stderr].join('\n').trim()
-
-  if (verify.status !== 0 || isTursoAuthMessage(verifyOutput)) {
+  if (!isTursoAuthenticated()) {
     console.error('Turso login could not be verified.')
     return false
   }
 
   return true
+}
+
+function requestTursoLogin(): boolean {
+  if (!confirm('Run `turso auth login` now? (Y/n):', true)) {
+    return false
+  }
+  return runTursoLogin()
+}
+
+function isTursoAuthenticated(): boolean {
+  const result = spawnSync('turso', ['auth', 'whoami'], {
+    cwd: ROOT,
+    encoding: 'utf-8',
+  })
+  const output = [result.stdout, result.stderr].join('\n').trim()
+
+  return result.status === 0 && !isTursoAuthMessage(output)
+}
+
+function runTursoLogin(): boolean {
+  const result = spawnSync('turso', ['auth', 'login'], {
+    cwd: ROOT,
+    stdio: 'inherit',
+  })
+  if (result.status === 0) {
+    return true
+  }
+
+  console.error('Failed to log in to Turso.')
+  return false
 }
 
 function runTursoCommand(args: string[], errorMessage: string): string {

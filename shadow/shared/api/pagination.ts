@@ -14,7 +14,6 @@ export const PaginationQuery = Schema.Struct({
   page: Schema.optionalWith(Page, { default: () => 1 }),
   perPage: Schema.optionalWith(PerPage, { default: () => 10 }),
 })
-export type PaginationQuery = Schema.Schema.Type<typeof PaginationQuery>
 
 export const PaginationMeta = Schema.Struct({
   page: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1)),

@@ -12,7 +12,7 @@ export const Task = Schema.Struct({
 })
 export type Task = Schema.Schema.Type<typeof Task>
 
-export const TaskListQuery = PaginationQuery
+const TaskListQuery = PaginationQuery
 export type TaskListQuery = Schema.Schema.Type<typeof TaskListQuery>
 
 export const TaskListResponse = Schema.Struct({
@@ -21,10 +21,9 @@ export const TaskListResponse = Schema.Struct({
 })
 export type TaskListResponse = Schema.Schema.Type<typeof TaskListResponse>
 
-export const TaskPath = Schema.Struct({
+const TaskPath = Schema.Struct({
   id: Schema.String.pipe(Schema.minLength(1)),
 })
-export type TaskPath = Schema.Schema.Type<typeof TaskPath>
 
 export const TaskCreateBody = Schema.Struct({
   title: Schema.String.pipe(Schema.minLength(1)),
@@ -38,13 +37,12 @@ export const TaskUpdateBody = Schema.Struct({
 })
 export type TaskUpdateBody = Schema.Schema.Type<typeof TaskUpdateBody>
 
-export const TaskResponse = Schema.Struct({ data: Task })
+const TaskResponse = Schema.Struct({ data: Task })
 export type TaskResponse = Schema.Schema.Type<typeof TaskResponse>
 
-export const TaskDeleteResponse = Schema.Struct({
+const TaskDeleteResponse = Schema.Struct({
   success: Schema.Literal(true),
 })
-export type TaskDeleteResponse = Schema.Schema.Type<typeof TaskDeleteResponse>
 
 export class TaskApi extends HttpApiGroup.make('tasks')
   .add(
