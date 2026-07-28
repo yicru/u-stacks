@@ -66,7 +66,7 @@ export class ProjectApi extends HttpApiGroup.make('projects').add(
 ) {}
 ```
 
-`shared/api/index.ts`の`ShadowApi`へgroupを追加する。すべてのpathは`ShadowApi.prefix('/api')`の配下になる。
+各resourceの`HttpApiGroup`を`shared/api/index.ts`へimportし、`ShadowApi`へ追加する。`index.ts`にはendpoint定義を置かない。すべてのpathは`ShadowApi.prefix('/api')`の配下になる。
 
 ## Handler
 

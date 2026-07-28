@@ -7,7 +7,7 @@ TanStack Start + Effect HTTP API + shadcn/ui (Base UI) + Drizzle + Turso on Clou
 ```text
 shadow/
 ├── shared/api/
-│   ├── index.ts                   # ShadowApi and HttpApiGroup registration
+│   ├── index.ts                   # Top-level ShadowApi composition
 │   ├── errors.ts                  # Shared error schemas and constructors
 │   ├── pagination.ts              # Shared pagination query and metadata schemas
 │   └── {resource}.ts              # Request, response, path, and payload schemas

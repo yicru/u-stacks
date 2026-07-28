@@ -1,4 +1,6 @@
+import { HttpApiEndpoint, HttpApiGroup } from '@effect/platform'
 import { Schema } from 'effect'
+import { ApiError } from './errors'
 import { PaginationMeta, PaginationQuery } from './pagination'
 
 export const Task = Schema.Struct({
@@ -43,3 +45,39 @@ export const TaskDeleteResponse = Schema.Struct({
   success: Schema.Literal(true),
 })
 export type TaskDeleteResponse = Schema.Schema.Type<typeof TaskDeleteResponse>
+
+export class TaskApi extends HttpApiGroup.make('tasks')
+  .add(
+    HttpApiEndpoint.get('list', '/tasks')
+      .setUrlParams(TaskListQuery)
+      .addSuccess(TaskListResponse)
+      .addError(ApiError.Internal, { status: 500 }),
+  )
+  .add(
+    HttpApiEndpoint.get('get', '/tasks/:id')
+      .setPath(TaskPath)
+      .addSuccess(TaskResponse)
+      .addError(ApiError.NotFound, { status: 404 })
+      .addError(ApiError.Internal, { status: 500 }),
+  )
+  .add(
+    HttpApiEndpoint.post('create', '/tasks')
+      .setPayload(TaskCreateBody)
+      .addSuccess(TaskResponse, { status: 201 })
+      .addError(ApiError.Internal, { status: 500 }),
+  )
+  .add(
+    HttpApiEndpoint.put('update', '/tasks/:id')
+      .setPath(TaskPath)
+      .setPayload(TaskUpdateBody)
+      .addSuccess(TaskResponse)
+      .addError(ApiError.NotFound, { status: 404 })
+      .addError(ApiError.Internal, { status: 500 }),
+  )
+  .add(
+    HttpApiEndpoint.del('remove', '/tasks/:id')
+      .setPath(TaskPath)
+      .addSuccess(TaskDeleteResponse)
+      .addError(ApiError.NotFound, { status: 404 })
+      .addError(ApiError.Internal, { status: 500 }),
+  ) {}
