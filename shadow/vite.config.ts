@@ -7,10 +7,23 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { cloudflare } from '@cloudflare/vite-plugin'
 
+const localTursoUrl = process.env.SHADOW_LOCAL_TURSO_URL
+
 export default defineConfig({
   plugins: [
     devtools(),
-    cloudflare({ viteEnvironment: { name: 'ssr' } }),
+    cloudflare({
+      viteEnvironment: { name: 'ssr' },
+      config: localTursoUrl
+        ? (config) => ({
+            vars: {
+              ...config.vars,
+              TURSO_AUTH_TOKEN: '',
+              TURSO_DATABASE_URL: localTursoUrl,
+            },
+          })
+        : undefined,
+    }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),

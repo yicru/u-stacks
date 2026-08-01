@@ -11,7 +11,7 @@ export const DatabaseLive = Layer.effect(
     Effect.sync(() => {
       const client = createClient({
         url: env.TURSO_DATABASE_URL,
-        authToken: env.TURSO_AUTH_TOKEN,
+        authToken: env.TURSO_AUTH_TOKEN || undefined,
       })
       return {
         client,

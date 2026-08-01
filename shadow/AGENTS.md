@@ -79,6 +79,7 @@ shadow/
 - Tests: Vitest beside contracts, services, handler, and client
 - Icons: `@hugeicons/react` and `@hugeicons/core-free-icons`
 - Date display: `src/lib/date.ts` `formatDateTime()`
+- Local database: `turso dev` backed by `.turso/dev.db`, preferring `127.0.0.1:8080` and falling back to a free port
 
 ## MODULE WORKFLOW
 
@@ -116,6 +117,8 @@ Keep `@libsql/client` at exactly `0.15.15`. Newer releases pull a fetch implemen
 ### Cloudflare environment
 
 `DatabaseLive` reads `env` from `cloudflare:workers` and owns the libSQL client lifecycle. Do not create a separate client inside modules.
+
+Local development uses the HTTP endpoint started by `bun run dev`; Workers must not receive a `file:` URL. Drizzle migration and Studio commands access `.turso/dev.db` directly, while remote credentials belong only in `.dev.vars.production`.
 
 ### SSR self-reference
 

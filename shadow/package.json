@@ -6,7 +6,7 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "portless run vp dev",
+    "dev": "bun scripts/dev.ts",
     "build": "vp build",
     "preview": "bun run build && vp preview",
     "test": "vp test run",
@@ -18,10 +18,10 @@
     "fallow": "fallow",
     "fallow:audit": "fallow audit",
     "quality": "bun run lint && bun run test && bun run doctor && bun run fallow",
-    "db:generate": "dotenvx run --overload -f .dev.vars -- drizzle-kit generate",
-    "db:migrate": "dotenvx run --overload -f .dev.vars -- drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit push",
     "db:migrate:prod": "dotenvx run --overload -f .dev.vars.production -- drizzle-kit push",
-    "db:studio": "dotenvx run --overload -f .dev.vars -- drizzle-kit studio",
+    "db:studio": "drizzle-kit studio",
     "generate:module": "scaffdog generate module",
     "setup": "bun scripts/setup.ts"
   },
