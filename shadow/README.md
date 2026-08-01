@@ -9,7 +9,7 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 - TanStack Start with file-based routing
 - Effect HTTP API mounted under `/api`
 - Shared Effect Schema for request, response, and error contracts
-- Effect `Context.Tag` and Layer-based services
+- Effect `Context.Service` and Layer-based services
 - Generated `HttpApiClient` for type-safe browser calls
 - Drizzle ORM with Turso / libSQL
 - Cloudflare Workers deployment via Wrangler
@@ -108,7 +108,7 @@ shadow/
 
 `shared/api` is the source of truth. The server uses the contract with `HttpApiBuilder`, while the browser creates its client with `HttpApiClient.make`. Request and response validation therefore use the same Effect Schema on both sides.
 
-Services depend on `Database` through `Context.Tag`. Production implementations are assembled with Layer, while tests inject an in-memory database or a test service Layer.
+Services depend on `Database` through `Context.Service`. Production implementations are assembled with Layer, while tests inject an in-memory database or a test service Layer.
 
 See `server/modules/README.md` for module design and registration rules.
 

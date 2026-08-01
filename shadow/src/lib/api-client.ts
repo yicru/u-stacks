@@ -1,5 +1,6 @@
-import { FetchHttpClient, HttpApiClient } from '@effect/platform'
 import { Effect, Layer } from 'effect'
+import { FetchHttpClient } from 'effect/unstable/http'
+import { HttpApiClient } from 'effect/unstable/httpapi'
 import { AppApi } from '@shared/api'
 
 interface ApiClientOptions {

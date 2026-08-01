@@ -9,7 +9,7 @@ export const Route = createFileRoute('/')({
   loader: async () => {
     return Effect.runPromise(
       apiClient.tasks.getTasks({
-        urlParams: { page: 1, perPage: 10 },
+        query: { page: 1, perPage: 10 },
       }),
     )
   },

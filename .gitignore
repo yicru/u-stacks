@@ -3,3 +3,5 @@
 # Local agent artifacts
 .omo/
 .serena/
+
+.repos/effect

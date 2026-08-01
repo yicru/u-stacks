@@ -1,38 +1,47 @@
 import { Schema } from 'effect'
 
-export namespace ApiError {
-  export const Validation = Schema.Struct({
+export class ValidationError extends Schema.Class<ValidationError>(
+  'ValidationError',
+)(
+  {
     code: Schema.Literal('VALIDATION_ERROR'),
     message: Schema.String,
     detail: Schema.Array(Schema.Unknown),
-  })
-  export type Validation = Schema.Schema.Type<typeof Validation>
+  },
+  { httpApiStatus: 400 },
+) {
+  static readonly makeValidation = (detail: ReadonlyArray<unknown>) =>
+    ValidationError.make({
+      code: 'VALIDATION_ERROR',
+      message: 'Validation Error',
+      detail,
+    })
+}
 
-  export const NotFound = Schema.Struct({
+export class NotFoundError extends Schema.Class<NotFoundError>('NotFoundError')(
+  {
     code: Schema.Literal('NOT_FOUND'),
     message: Schema.String,
-  })
-  export type NotFound = Schema.Schema.Type<typeof NotFound>
+  },
+  { httpApiStatus: 404 },
+) {
+  static readonly makeNotFound = (message: string) =>
+    NotFoundError.make({
+      code: 'NOT_FOUND',
+      message,
+    })
+}
 
-  export const Internal = Schema.Struct({
+export class InternalError extends Schema.Class<InternalError>('InternalError')(
+  {
     code: Schema.Literal('INTERNAL_ERROR'),
     message: Schema.String,
-  })
-  export type Internal = Schema.Schema.Type<typeof Internal>
-
-  export const validation = (detail: ReadonlyArray<unknown>): Validation => ({
-    code: 'VALIDATION_ERROR',
-    message: 'Validation Error',
-    detail,
-  })
-
-  export const notFound = (message: string): NotFound => ({
-    code: 'NOT_FOUND',
-    message,
-  })
-
-  export const internal = (): Internal => ({
-    code: 'INTERNAL_ERROR',
-    message: 'Internal Server Error',
-  })
+  },
+  { httpApiStatus: 500 },
+) {
+  static readonly makeInternal = () =>
+    InternalError.make({
+      code: 'INTERNAL_ERROR',
+      message: 'Internal Server Error',
+    })
 }

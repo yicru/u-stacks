@@ -30,7 +30,7 @@ export function TaskList({ tasks }: TaskListProps) {
       try {
         await Effect.runPromise(
           apiClient.tasks.updateTask({
-            path: { id: task.id },
+            params: { id: task.id },
             payload: { done: !task.done },
           }),
         )
@@ -46,7 +46,7 @@ export function TaskList({ tasks }: TaskListProps) {
       try {
         await Effect.runPromise(
           apiClient.tasks.deleteTask({
-            path: { id },
+            params: { id },
           }),
         )
         router.invalidate()

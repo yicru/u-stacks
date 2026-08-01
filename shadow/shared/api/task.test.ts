@@ -4,8 +4,8 @@ import { Task, TaskCreateBody, TaskUpdateBody } from './task'
 
 describe('Task payloads', () => {
   it('requires a non-empty title when creating a task', () => {
-    expect(Schema.decodeUnknownEither(TaskCreateBody)({ title: '' })._tag).toBe(
-      'Left',
+    expect(Schema.decodeUnknownResult(TaskCreateBody)({ title: '' })._tag).toBe(
+      'Failure',
     )
   })
 

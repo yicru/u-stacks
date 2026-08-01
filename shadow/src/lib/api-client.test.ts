@@ -29,7 +29,7 @@ describe('Effect API client', () => {
 
     await Effect.runPromise(
       client.tasks.getTasks({
-        urlParams: { page: 1, perPage: 10 },
+        query: { page: 1, perPage: 10 },
       }),
     )
 
@@ -61,7 +61,7 @@ describe('Effect API client', () => {
 
     const response = await Effect.runPromise(
       client.tasks.getTasks({
-        urlParams: { page: 2, perPage: 25 },
+        query: { page: 2, perPage: 25 },
       }),
     )
 
@@ -119,7 +119,7 @@ describe('Effect API client', () => {
     })
 
     const error = await Effect.runPromise(
-      client.tasks.getTask({ path: { id: 'missing' } }).pipe(Effect.flip),
+      client.tasks.getTask({ params: { id: 'missing' } }).pipe(Effect.flip),
     )
 
     expect(error).toEqual({

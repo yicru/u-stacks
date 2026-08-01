@@ -1,10 +1,12 @@
-import { HttpApiBuilder, HttpServer } from '@effect/platform'
 import { Layer } from 'effect'
+import { HttpRouter, HttpServer } from 'effect/unstable/http'
+import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import { HealthCheckHandlersLive } from '@server/modules/health-check/handlers'
 import { TaskHandlersLive } from '@server/modules/task/handlers'
 import { TaskService } from '@server/modules/task/service'
 import { AppApi } from '@shared/api'
-import { ApiError } from '@shared/api/errors'
+import { NotFoundError } from '@shared/api/errors'
+import { SchemaErrorMiddlewareLive } from '@shared/api/schema-error-middleware'
 
 const ApiHandlersLive = Layer.mergeAll(
   HealthCheckHandlersLive,
@@ -12,36 +14,19 @@ const ApiHandlersLive = Layer.mergeAll(
 )
 
 export const makeApiHandler = <E>(
-  taskServiceLayer: Layer.Layer<TaskService, E, never>,
+  taskServiceLayer: Layer.Layer<TaskService, E>,
 ) => {
-  const handlers = ApiHandlersLive.pipe(Layer.provide(taskServiceLayer))
-  const api = HttpApiBuilder.api(AppApi).pipe(Layer.provide(handlers))
-  const web = HttpApiBuilder.toWebHandler(
-    Layer.mergeAll(api, HttpServer.layerContext),
+  const api = HttpApiBuilder.layer(AppApi).pipe(
+    Layer.provide(ApiHandlersLive.pipe(Layer.provide(taskServiceLayer))),
+    Layer.provide(SchemaErrorMiddlewareLive),
+    Layer.provide(HttpServer.layerServices),
   )
+  const web = HttpRouter.toWebHandler(api, { disableLogger: true })
 
   return {
     dispose: web.dispose,
     handler: async (request: Request) => {
       const response = await web.handler(request)
-      if (response.status === 400) {
-        const body = await response
-          .clone()
-          .json()
-          .catch(() => undefined)
-        if (
-          typeof body === 'object' &&
-          body !== null &&
-          '_tag' in body &&
-          body._tag === 'HttpApiDecodeError' &&
-          'issues' in body &&
-          Array.isArray(body.issues)
-        ) {
-          return Response.json(ApiError.validation(body.issues), {
-            status: 400,
-          })
-        }
-      }
       if (response.status !== 404) {
         return response
       }
@@ -53,7 +38,7 @@ export const makeApiHandler = <E>(
         return response
       }
       return Response.json(
-        ApiError.notFound(
+        NotFoundError.makeNotFound(
           `The requested endpoint ${new URL(request.url).pathname} was not found`,
         ),
         { status: 404 },

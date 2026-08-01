@@ -1,6 +1,10 @@
-import { HttpApiEndpoint, HttpApiGroup } from '@effect/platform'
 import { Schema } from 'effect'
-import { ApiError } from './errors'
+import {
+  HttpApiEndpoint,
+  HttpApiGroup,
+  HttpApiSchema,
+} from 'effect/unstable/httpapi'
+import { InternalError, NotFoundError } from './errors'
 import { PaginationMeta, PaginationQuery } from './pagination'
 
 export const Task = Schema.Struct({
@@ -10,74 +14,78 @@ export const Task = Schema.Struct({
   createdAt: Schema.DateFromString,
   updatedAt: Schema.DateFromString,
 })
-export type Task = Schema.Schema.Type<typeof Task>
+export type Task = typeof Task.Type
 
 export const TaskListQuery = PaginationQuery
-export type TaskListQuery = Schema.Schema.Type<typeof TaskListQuery>
+export type TaskListQuery = typeof TaskListQuery.Type
 
 export const TaskListResponse = Schema.Struct({
   data: Schema.Array(Task),
   meta: PaginationMeta,
 })
-export type TaskListResponse = Schema.Schema.Type<typeof TaskListResponse>
+export type TaskListResponse = typeof TaskListResponse.Type
 
 export const TaskPath = Schema.Struct({
-  id: Schema.String.pipe(Schema.minLength(1)),
+  id: Schema.String.check(Schema.isMinLength(1)),
 })
-export type TaskPath = Schema.Schema.Type<typeof TaskPath>
+export type TaskPath = typeof TaskPath.Type
 
 export const TaskCreateBody = Schema.Struct({
-  title: Schema.String.pipe(Schema.minLength(1)),
-  done: Schema.optional(Schema.Boolean),
+  title: Schema.String.check(Schema.isMinLength(1)),
+  done: Schema.optionalKey(Schema.Boolean),
 })
-export type TaskCreateBody = Schema.Schema.Type<typeof TaskCreateBody>
+export type TaskCreateBody = typeof TaskCreateBody.Type
 
 export const TaskUpdateBody = Schema.Struct({
-  title: Schema.optional(Schema.String.pipe(Schema.minLength(1))),
-  done: Schema.optional(Schema.Boolean),
+  title: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
+  done: Schema.optionalKey(Schema.Boolean),
 })
-export type TaskUpdateBody = Schema.Schema.Type<typeof TaskUpdateBody>
+export type TaskUpdateBody = typeof TaskUpdateBody.Type
 
-export const TaskResponse = Schema.Struct({ data: Task })
-export type TaskResponse = Schema.Schema.Type<typeof TaskResponse>
+export const TaskResponse = Schema.Struct({
+  data: Task,
+})
+export type TaskResponse = typeof TaskResponse.Type
 
 export const TaskDeleteResponse = Schema.Struct({
   success: Schema.Literal(true),
 })
-export type TaskDeleteResponse = Schema.Schema.Type<typeof TaskDeleteResponse>
+export type TaskDeleteResponse = typeof TaskDeleteResponse.Type
 
 export class TaskApi extends HttpApiGroup.make('tasks')
   .add(
-    HttpApiEndpoint.get('getTasks', '/tasks')
-      .setUrlParams(TaskListQuery)
-      .addSuccess(TaskListResponse)
-      .addError(ApiError.Internal, { status: 500 }),
+    HttpApiEndpoint.get('getTasks', '/tasks', {
+      query: TaskListQuery,
+      success: TaskListResponse,
+      error: InternalError,
+    }),
   )
   .add(
-    HttpApiEndpoint.get('getTask', '/tasks/:id')
-      .setPath(TaskPath)
-      .addSuccess(TaskResponse)
-      .addError(ApiError.NotFound, { status: 404 })
-      .addError(ApiError.Internal, { status: 500 }),
+    HttpApiEndpoint.get('getTask', '/tasks/:id', {
+      params: TaskPath,
+      success: TaskResponse,
+      error: [NotFoundError, InternalError],
+    }),
   )
   .add(
-    HttpApiEndpoint.post('createTask', '/tasks')
-      .setPayload(TaskCreateBody)
-      .addSuccess(TaskResponse, { status: 201 })
-      .addError(ApiError.Internal, { status: 500 }),
+    HttpApiEndpoint.post('createTask', '/tasks', {
+      payload: TaskCreateBody,
+      success: TaskResponse.pipe(HttpApiSchema.status(201)),
+      error: InternalError,
+    }),
   )
   .add(
-    HttpApiEndpoint.put('updateTask', '/tasks/:id')
-      .setPath(TaskPath)
-      .setPayload(TaskUpdateBody)
-      .addSuccess(TaskResponse)
-      .addError(ApiError.NotFound, { status: 404 })
-      .addError(ApiError.Internal, { status: 500 }),
+    HttpApiEndpoint.put('updateTask', '/tasks/:id', {
+      params: TaskPath,
+      payload: TaskUpdateBody,
+      success: TaskResponse,
+      error: [NotFoundError, InternalError],
+    }),
   )
   .add(
-    HttpApiEndpoint.del('deleteTask', '/tasks/:id')
-      .setPath(TaskPath)
-      .addSuccess(TaskDeleteResponse)
-      .addError(ApiError.NotFound, { status: 404 })
-      .addError(ApiError.Internal, { status: 500 }),
+    HttpApiEndpoint.delete('deleteTask', '/tasks/:id', {
+      params: TaskPath,
+      success: TaskDeleteResponse,
+      error: [NotFoundError, InternalError],
+    }),
   ) {}

@@ -4,7 +4,7 @@ import { Effect, Layer } from 'effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Database } from '@server/db'
 import * as schema from '@server/db/schema'
-import { TaskService, TaskServiceLive } from './service'
+import { TaskService } from './service'
 
 describe('TaskService', () => {
   let close: () => void
@@ -23,7 +23,7 @@ describe('TaskService', () => {
       )
     `)
     const database = drizzle(client, { schema })
-    TestLive = TaskServiceLive.pipe(
+    TestLive = TaskService.Live.pipe(
       Layer.provide(Layer.succeed(Database, database)),
     )
   })

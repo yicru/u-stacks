@@ -1,25 +1,28 @@
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 
-const Page = Schema.NumberFromString.pipe(
-  Schema.int(),
-  Schema.greaterThanOrEqualTo(1),
+const Page = Schema.NumberFromString.check(
+  Schema.isInt(),
+  Schema.isGreaterThanOrEqualTo(1),
 )
 
-const PerPage = Schema.NumberFromString.pipe(
-  Schema.int(),
-  Schema.between(1, 50),
+const PerPage = Schema.NumberFromString.check(
+  Schema.isInt(),
+  Schema.isBetween({ minimum: 1, maximum: 50 }),
 )
 
 export const PaginationQuery = Schema.Struct({
-  page: Schema.optionalWith(Page, { default: () => 1 }),
-  perPage: Schema.optionalWith(PerPage, { default: () => 10 }),
+  page: Page.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(1))),
+  perPage: PerPage.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(10))),
 })
-export type PaginationQuery = Schema.Schema.Type<typeof PaginationQuery>
+export type PaginationQuery = typeof PaginationQuery.Type
 
 export const PaginationMeta = Schema.Struct({
-  page: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1)),
-  perPage: Schema.Number.pipe(Schema.int(), Schema.between(1, 50)),
-  total: Schema.NonNegativeInt,
-  totalPages: Schema.NonNegativeInt,
+  page: Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1)),
+  perPage: Schema.Number.check(
+    Schema.isInt(),
+    Schema.isBetween({ minimum: 1, maximum: 50 }),
+  ),
+  total: Schema.Natural,
+  totalPages: Schema.Natural,
 })
-export type PaginationMeta = Schema.Schema.Type<typeof PaginationMeta>
+export type PaginationMeta = typeof PaginationMeta.Type

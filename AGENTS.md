@@ -33,9 +33,9 @@ u-stacks/
 ### Server Layer
 
 - tails and sonic use Hono routes and `hc<AppType>` clients
-- shadow uses Effect `HttpApi`, Effect Schema, `HttpApiBuilder`, and `HttpApiClient`
+- shadow uses Effect v4 `HttpApi` from `effect/unstable/httpapi`, Effect Schema, `HttpApiBuilder`, and `HttpApiClient`
 - shadow keeps the shared runtime contract in `shared/api`
-- shadow composes database and domain services with `Context.Tag` and Layer
+- shadow composes database and domain services with `Context.Service` and Layer
 - all stacks mount their public API below `/api`
 
 ### Client Layer
@@ -57,7 +57,7 @@ u-stacks/
 |---|---|---|---|
 | Framework | Next.js 15 | React Router v7 | TanStack Start |
 | API | Hono | Hono | Effect HTTP API |
-| Contract | Hono RPC | Hono RPC | Effect Schema + HttpApi |
+| Contract | Hono RPC | Hono RPC | Effect v4 Schema + HttpApi |
 | UI | shadcn/ui (Radix) | Mantine | shadcn/ui (Base UI) |
 | Auth | Better Auth | Clerk | None |
 | ORM | Drizzle (Turso) | Prisma (PostgreSQL) | Drizzle (Turso) |

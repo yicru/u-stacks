@@ -4,7 +4,6 @@ import * as schema from './schema'
 
 export type DatabaseClient = LibSQLDatabase<typeof schema>
 
-export class Database extends Context.Tag('@server/db/Database')<
-  Database,
-  DatabaseClient
->() {}
+export class Database extends Context.Service<Database, DatabaseClient>()(
+  '@server/db/Database',
+) {}

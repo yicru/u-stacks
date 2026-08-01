@@ -1,5 +1,5 @@
-import { HttpApiBuilder } from '@effect/platform'
 import { Effect } from 'effect'
+import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import { AppApi } from '@shared/api'
 
 export const HealthCheckHandlersLive = HttpApiBuilder.group(

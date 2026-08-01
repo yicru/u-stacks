@@ -5,7 +5,7 @@ import { Effect, Layer } from 'effect'
 import { Database } from './index'
 import * as schema from './schema'
 
-export const DatabaseLive = Layer.scoped(
+export const DatabaseLive = Layer.effect(
   Database,
   Effect.acquireRelease(
     Effect.sync(() => {

@@ -4,7 +4,11 @@ import {
   TaskService,
   type TaskServiceShape,
 } from '@server/modules/task/service'
-import { ApiError } from '@shared/api/errors'
+import {
+  InternalError,
+  NotFoundError,
+  ValidationError,
+} from '@shared/api/errors'
 import { TaskListResponse } from '@shared/api/task'
 import { makeApiHandler } from './handler'
 
@@ -25,24 +29,24 @@ const TaskServiceTest = Layer.succeed(TaskService, {
   get: (id) =>
     id === task.id
       ? Effect.succeed({ data: task })
-      : Effect.fail(ApiError.notFound(`Task with id ${id} not found`)),
+      : Effect.fail(NotFoundError.makeNotFound(`Task with id ${id} not found`)),
   create: (body) => Effect.succeed({ data: { ...task, ...body } }),
   update: (id, body) =>
     id === task.id
       ? Effect.succeed({ data: { ...task, ...body } })
-      : Effect.fail(ApiError.notFound(`Task with id ${id} not found`)),
+      : Effect.fail(NotFoundError.makeNotFound(`Task with id ${id} not found`)),
   remove: (id) =>
     id === task.id
-      ? Effect.succeed({ success: true })
-      : Effect.fail(ApiError.notFound(`Task with id ${id} not found`)),
+      ? Effect.succeed({ success: true as const })
+      : Effect.fail(NotFoundError.makeNotFound(`Task with id ${id} not found`)),
 } satisfies TaskServiceShape)
 
 const TaskServiceFailure = Layer.succeed(TaskService, {
-  list: () => Effect.fail(ApiError.internal()),
-  get: () => Effect.fail(ApiError.internal()),
-  create: () => Effect.fail(ApiError.internal()),
-  update: () => Effect.fail(ApiError.internal()),
-  remove: () => Effect.fail(ApiError.internal()),
+  list: () => Effect.fail(InternalError.makeInternal()),
+  get: () => Effect.fail(InternalError.makeInternal()),
+  create: () => Effect.fail(InternalError.makeInternal()),
+  update: () => Effect.fail(InternalError.makeInternal()),
+  remove: () => Effect.fail(InternalError.makeInternal()),
 } satisfies TaskServiceShape)
 
 describe('Effect API handler', () => {
@@ -132,7 +136,7 @@ describe('Effect API handler', () => {
     const response = await handler(
       new Request('http://localhost/api/tasks?page=0'),
     )
-    const body = Schema.decodeUnknownSync(ApiError.Validation)(
+    const body = Schema.decodeUnknownSync(ValidationError)(
       await response.json(),
     )
 

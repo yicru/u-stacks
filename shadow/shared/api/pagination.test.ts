@@ -21,10 +21,10 @@ describe('PaginationQuery', () => {
 
   it('rejects pagination outside the accepted range', () => {
     expect(
-      Schema.decodeUnknownEither(PaginationQuery)({
+      Schema.decodeUnknownResult(PaginationQuery)({
         page: '0',
         perPage: '51',
       })._tag,
-    ).toBe('Left')
+    ).toBe('Failure')
   })
 })

@@ -8,9 +8,10 @@ TanStack Start + Effect HTTP API + shadcn/ui (Base UI) + Drizzle + Turso on Clou
 shadow/
 ├── shared/api/
 │   ├── index.ts                   # Top-level AppApi composition
-│   ├── errors.ts                  # Shared error schemas and constructors
+│   ├── errors.ts                  # Shared error Schema.Class values
+│   ├── schema-error-middleware.ts # HttpApiSchemaError → ValidationError
 │   ├── pagination.ts              # Shared pagination query and metadata schemas
-│   └── {resource}.ts              # Request, response, path, and payload schemas
+│   └── {resource}.ts              # Request, response, params, and payload schemas
 ├── src/
 │   ├── routes/
 │   │   ├── __root.tsx             # Root layout
@@ -26,12 +27,12 @@ shadow/
 │   ├── index.ts                   # Production Layer composition
 │   ├── handler.ts                 # Effect API Web handler factory
 │   ├── db/
-│   │   ├── index.ts               # Database Context.Tag
-│   │   ├── live.ts                # Scoped Turso/Drizzle Layer
+│   │   ├── index.ts               # Database Context.Service
+│   │   ├── live.ts                # Turso/Drizzle Layer
 │   │   └── schema.ts              # Drizzle tables
 │   ├── modules/{name}/
 │   │   ├── handlers.ts            # HttpApiBuilder.group
-│   │   ├── service.ts             # Context.Tag + Live Layer
+│   │   ├── service.ts             # Context.Service + Live Layer
 │   │   └── service.test.ts        # Service behavior tests
 │   └── lib/                       # Pagination and ID utilities
 ├── scripts/setup.ts               # Template initialization
@@ -57,16 +58,21 @@ shadow/
 ## CONVENTIONS
 
 - Package manager: bun only
+- Effect: `effect@beta` (v4)
 - Path aliases: `@/*` → `src/*`, `@server/*` → `server/*`, `@shared/*` → `shared/*`, `#/*` → `src/*`
 - API source of truth: `shared/api`
 - Pagination contract: reuse `shared/api/pagination.ts` across resource modules
 - Endpoint identifiers: `getResources`, `getResource`, `createResource`, `updateResource`, `deleteResource`
+- Client request fields: `query` / `params` / `payload`
 - Request, response, and error validation: Effect Schema
-- HTTP server: `HttpApiBuilder` and `HttpApiBuilder.toWebHandler`
+- HTTP API: `effect/unstable/httpapi` (`HttpApi`, `HttpApiBuilder`, `HttpApiClient`)
+- HTTP runtime: `effect/unstable/http` (`HttpRouter.toWebHandler`, `FetchHttpClient`, `HttpServer.layerServices`)
 - Browser client: `HttpApiClient.make` with `FetchHttpClient`
-- Service dependencies: `Context.Tag`
+- Service dependencies: `Context.Service`
 - Production and test implementations: Layer
-- Database resources: scoped Layer with acquire/release
+- Database resources: `Layer.effect` with `Effect.acquireRelease`
+- Service methods: `Effect.fn`
+- Handlers: yield services while building the group, then close over them
 - DB Promise failures: `Effect.tryPromise`, logged and mapped to typed API errors
 - Data fetching: TanStack Router loaders plus `router.invalidate()`
 - Toolchain: Vite+ with oxlint and oxfmt

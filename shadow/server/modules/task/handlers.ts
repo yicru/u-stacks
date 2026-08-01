@@ -1,28 +1,20 @@
-import { HttpApiBuilder } from '@effect/platform'
 import { Effect } from 'effect'
+import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import { AppApi } from '@shared/api'
 import { TaskService } from './service'
 
 export const TaskHandlersLive = HttpApiBuilder.group(
   AppApi,
   'tasks',
-  (handlers) =>
-    handlers
-      .handle('getTasks', ({ urlParams }) =>
-        Effect.flatMap(TaskService, (service) => service.list(urlParams)),
+  Effect.fn('TaskHandlers')(function* (handlers) {
+    const service = yield* TaskService
+    return handlers
+      .handle('getTasks', ({ query }) => service.list(query))
+      .handle('getTask', ({ params }) => service.get(params.id))
+      .handle('createTask', ({ payload }) => service.create(payload))
+      .handle('updateTask', ({ params, payload }) =>
+        service.update(params.id, payload),
       )
-      .handle('getTask', ({ path }) =>
-        Effect.flatMap(TaskService, (service) => service.get(path.id)),
-      )
-      .handle('createTask', ({ payload }) =>
-        Effect.flatMap(TaskService, (service) => service.create(payload)),
-      )
-      .handle('updateTask', ({ path, payload }) =>
-        Effect.flatMap(TaskService, (service) =>
-          service.update(path.id, payload),
-        ),
-      )
-      .handle('deleteTask', ({ path }) =>
-        Effect.flatMap(TaskService, (service) => service.remove(path.id)),
-      ),
+      .handle('deleteTask', ({ params }) => service.remove(params.id))
+  }),
 )
