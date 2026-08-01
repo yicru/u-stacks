@@ -43,7 +43,7 @@ bun run db:migrate
 bun run dev
 ```
 
-Open `https://my-app.localhost` after the dev server starts. On first run, portless may ask to trust a local development CA.
+Open `https://my-app.localhost` after the dev server starts. On first run, portless may ask to trust a local development CA. Named worktrees receive Portless's branch prefix; detached worktrees receive a stable suffix derived from the worktree ID.
 
 ## Setup Flow
 
@@ -65,7 +65,7 @@ TURSO_DATABASE_URL=http://127.0.0.1:8080
 TURSO_AUTH_TOKEN=
 ```
 
-`bun run db:migrate` and `bun run db:studio` access `.turso/dev.db` directly. `bun run dev` starts `turso dev --db-file .turso/dev.db`, waits for it to accept connections, and then starts the application. It uses port `8080` when available and selects a free port otherwise. The local database persists across restarts and is ignored by Git.
+`bun run db:migrate` and `bun run db:studio` always access `.turso/dev.db` directly. `bun run dev` starts `turso dev --db-file .turso/dev.db`, waits for it to accept connections, and then starts the application. It uses port `8080` when available and selects a free port otherwise. `bun run preview` uses the same local Turso supervisor and builds before starting the preview server. The local database persists across restarts and is ignored by Git.
 
 ## Available Commands
 
@@ -74,7 +74,7 @@ TURSO_AUTH_TOKEN=
 | `bun run setup`           | Initialize the template and optionally configure Turso      |
 | `bun run dev`             | Start local Turso and the app through portless              |
 | `bun run build`           | Build for production                                        |
-| `bun run preview`         | Build and preview the production output                     |
+| `bun run preview`         | Start local Turso, build, and preview the production output |
 | `bun run test`            | Run tests with Vitest                                       |
 | `bun run lint`            | Run typecheck, lint, and format checks                      |
 | `bun run format`          | Apply lint fixes and formatting                             |
@@ -106,8 +106,10 @@ shadow/
 │   ├── handler.ts       # Effect API Web handler factory
 │   └── index.ts         # Production Layer composition
 ├── scripts/
+│   ├── dev.ts
 │   └── setup.ts
 ├── drizzle.config.ts
+├── drizzle.production.config.ts
 ├── vitest.config.ts
 └── wrangler.jsonc
 ```
@@ -122,13 +124,13 @@ See `server/modules/README.md` for module design and registration rules.
 
 ## Deployment
 
-Production deploys use `.dev.vars.production` via `dotenvx`:
+Production deploys use `.dev.vars.production` via `dotenvx` and upload its values as Worker secrets:
 
 ```bash
 bun run deploy
 ```
 
-Prepare `.dev.vars.production` before deploying or running `bun run db:migrate:prod`. Local development never reads production Turso credentials.
+Prepare `.dev.vars.production` before deploying or running `bun run db:migrate:prod`. Production migrations use `drizzle.production.config.ts`; local database commands never read production Turso credentials.
 
 ## Notes
 

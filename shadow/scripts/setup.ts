@@ -394,11 +394,11 @@ function renameProject(nextAppName: string): void {
   )
   writeJson(PACKAGE_JSON_PATH, nextPackageJson)
 
-  const nextCtaConfig = JSON.parse(readFileSync(CTA_CONFIG_PATH, 'utf-8')) as {
-    projectName?: string
-  }
-  nextCtaConfig.projectName = nextAppName
-  writeJson(CTA_CONFIG_PATH, nextCtaConfig)
+  const ctaConfig = readFileSync(CTA_CONFIG_PATH, 'utf-8').replace(
+    /"projectName":\s*"[^"]+"/,
+    `"projectName": "${nextAppName}"`,
+  )
+  writeFileSync(CTA_CONFIG_PATH, ctaConfig)
 
   const wranglerConfig = readFileSync(WRANGLER_CONFIG_PATH, 'utf-8').replace(
     /"name":\s*"[^"]+"/,

@@ -8,9 +8,9 @@
   "scripts": {
     "dev": "bun scripts/dev.ts",
     "build": "vp build",
-    "preview": "bun run build && vp preview",
+    "preview": "bun scripts/dev.ts preview",
     "test": "vp test run",
-    "deploy": "dotenvx run --overload -f .dev.vars.production -- sh -c 'bun run build && wrangler deploy'",
+    "deploy": "dotenvx run --overload -f .dev.vars.production -- sh -c 'bun run build && wrangler deploy --secrets-file .dev.vars.production'",
     "cf-typegen": "wrangler types",
     "lint": "tsc -p tsconfig.check.json --noEmit && vp lint && vp fmt --check",
     "format": "vp lint --fix && vp fmt",
@@ -20,7 +20,7 @@
     "quality": "bun run lint && bun run test && bun run doctor && bun run fallow",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit push",
-    "db:migrate:prod": "dotenvx run --overload -f .dev.vars.production -- drizzle-kit push",
+    "db:migrate:prod": "dotenvx run --overload -f .dev.vars.production -- drizzle-kit push --config drizzle.production.config.ts",
     "db:studio": "drizzle-kit studio",
     "generate:module": "scaffdog generate module",
     "setup": "bun scripts/setup.ts"

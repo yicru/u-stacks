@@ -112,7 +112,7 @@ Browser code must not import runtime values from `server/`. It imports `AppApi` 
 
 ### `@libsql/client` pin
 
-Keep `@libsql/client` at exactly `0.15.15`. Newer releases pull a fetch implementation that fails in workerd with `XMLHttpRequest is not defined`.
+Keep `@libsql/client` at exactly `0.17.4`. This version uses native `fetch` and avoids the workerd `XMLHttpRequest is not defined` regression.
 
 ### Cloudflare environment
 
