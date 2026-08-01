@@ -34,6 +34,7 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 ## Quick Start
 
 ```bash
+brew install tursodatabase/tap/turso
 npx degit yicru/u-stacks/shadow my-app
 cd my-app
 bun install
@@ -46,30 +47,32 @@ Open `https://my-app.localhost` after the dev server starts. On first run, portl
 
 ## Setup Flow
 
-`bun run setup` updates the app name across the template and can guide you through Turso setup.
+`bun run setup` updates the app name across the template and prepares the local Turso environment.
 
 During setup you can:
 
 - rename the project
 - update the portless local app name
-- create a new Turso database or connect to an existing one
+- write the local Turso URL into `.dev.vars`
+- optionally create a production Turso database or connect to an existing one
 - choose a Turso group from a detected list or enter one manually
-- write `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` into `.dev.vars`
-- optionally copy the same credentials into `.dev.vars.production`
+- write production credentials into `.dev.vars.production`
 
-If you skip the Turso step, create `.dev.vars` before running database commands or local development.
+Local development does not use a remote Turso database. The generated `.dev.vars` contains:
 
 ```bash
-TURSO_DATABASE_URL=libsql://your-db.turso.io
-TURSO_AUTH_TOKEN=your-auth-token
+TURSO_DATABASE_URL=http://127.0.0.1:8080
+TURSO_AUTH_TOKEN=
 ```
+
+`bun run db:migrate` and `bun run db:studio` access `.turso/dev.db` directly. `bun run dev` starts `turso dev --db-file .turso/dev.db`, waits for it to accept connections, and then starts the application. It uses port `8080` when available and selects a free port otherwise. The local database persists across restarts and is ignored by Git.
 
 ## Available Commands
 
 | Command                   | Description                                                 |
 | ------------------------- | ----------------------------------------------------------- |
 | `bun run setup`           | Initialize the template and optionally configure Turso      |
-| `bun run dev`             | Start the local dev server through portless                 |
+| `bun run dev`             | Start local Turso and the app through portless              |
 | `bun run build`           | Build for production                                        |
 | `bun run preview`         | Build and preview the production output                     |
 | `bun run test`            | Run tests with Vitest                                       |
@@ -80,9 +83,9 @@ TURSO_AUTH_TOKEN=your-auth-token
 | `bun run fallow:audit`    | Gate newly introduced structural issues                     |
 | `bun run quality`         | Run lint, tests, React Doctor, and the full Fallow scan     |
 | `bun run db:generate`     | Generate Drizzle migrations from schema changes             |
-| `bun run db:migrate`      | Push schema changes using `.dev.vars`                       |
+| `bun run db:migrate`      | Push schema changes to `.turso/dev.db`                      |
 | `bun run db:migrate:prod` | Push schema changes using `.dev.vars.production`            |
-| `bun run db:studio`       | Open Drizzle Studio                                         |
+| `bun run db:studio`       | Open Drizzle Studio for `.turso/dev.db`                     |
 | `bun run generate:module` | Scaffold an Effect API contract, handler, service, and test |
 | `bun run deploy`          | Build and deploy to Cloudflare Workers                      |
 | `bun run cf-typegen`      | Regenerate Wrangler environment types                       |
@@ -125,7 +128,7 @@ Production deploys use `.dev.vars.production` via `dotenvx`:
 bun run deploy
 ```
 
-Prepare production credentials before deploying or running `bun run db:migrate:prod`.
+Prepare `.dev.vars.production` before deploying or running `bun run db:migrate:prod`. Local development never reads production Turso credentials.
 
 ## Notes
 

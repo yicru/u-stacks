@@ -47,20 +47,26 @@ if (!appName) {
 renameProject(appName)
 ensureSetupScript()
 updateReadme(appName)
+configureLocalTurso()
 
-const tursoConfigured = configureTurso(appName)
+const productionTursoConfigured = configureProductionTurso(appName)
 
 console.log(`✨ Project configured as "${appName}"`)
-if (tursoConfigured) {
-  console.log('✨ Turso environment variables have been set.')
+console.log('✨ Local Turso dev server variables have been set.')
+if (productionTursoConfigured) {
+  console.log('✨ Production Turso environment variables have been set.')
 } else {
   console.log(
-    'ℹ️ Turso setup was skipped. Before running db commands, configure .dev.vars manually or run `bun run setup` again.',
+    'ℹ️ Production Turso setup was skipped. Configure .dev.vars.production before deploying.',
   )
 }
 
-function configureTurso(projectName: string): boolean {
-  if (!confirm('Configure Turso now? (y/N):', false)) {
+function configureLocalTurso(): void {
+  writeTursoEnv(DEV_VARS_PATH, 'http://127.0.0.1:8080', '')
+}
+
+function configureProductionTurso(projectName: string): boolean {
+  if (!confirm('Configure production Turso now? (y/N):', false)) {
     return false
   }
 
@@ -140,16 +146,7 @@ function writeTursoCredentials({
   databaseUrl,
   authToken,
 }: ReturnType<typeof getTursoCredentials>): void {
-  writeTursoEnv(DEV_VARS_PATH, databaseUrl, authToken)
-
-  if (
-    confirm(
-      'Also write the same Turso values to .dev.vars.production? This can point deploys at the same DB. (y/N):',
-      false,
-    )
-  ) {
-    writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
-  }
+  writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
 }
 
 function configureTursoManually(): boolean {
@@ -160,16 +157,7 @@ function configureTursoManually(): boolean {
   const databaseUrl = askRequired('TURSO_DATABASE_URL:', '')
   const authToken = askRequired('TURSO_AUTH_TOKEN:', '')
 
-  writeTursoEnv(DEV_VARS_PATH, databaseUrl, authToken)
-
-  if (
-    confirm(
-      'Also write the same Turso values to .dev.vars.production? This can point deploys at the same DB. (y/N):',
-      false,
-    )
-  ) {
-    writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
-  }
+  writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
 
   return true
 }
