@@ -5,4 +5,4 @@ import { makeApiHandler } from './handler'
 
 const TaskServiceProduction = TaskService.Live.pipe(Layer.provide(DatabaseLive))
 
-export const { dispose, handler } = makeApiHandler(TaskServiceProduction)
+export const { handler } = makeApiHandler(TaskServiceProduction)

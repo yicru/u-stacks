@@ -1,0 +1,18 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "blocking": "error",
+  "deadCode": false,
+  "noScore": true,
+  "scope": "full",
+  "supplyChain": {
+    "enabled": false
+  },
+  "ignore": {
+    "files": [
+      "src/components/ui/**",
+      "src/hooks/use-mobile.ts",
+      "src/lib/utils.ts",
+      "src/routeTree.gen.ts"
+    ]
+  }
+}

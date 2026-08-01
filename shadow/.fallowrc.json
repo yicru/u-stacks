@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": ["src/start.ts"],
+  "ignorePatterns": [
+    "src/components/ui/**",
+    "src/hooks/use-mobile.ts",
+    "src/lib/utils.ts",
+    "src/routeTree.gen.ts",
+    "worker-configuration.d.ts"
+  ],
+  "ignoreDependencies": [
+    "@base-ui/react",
+    "@daypicker/react",
+    "class-variance-authority",
+    "clsx",
+    "cmdk",
+    "embla-carousel-react",
+    "input-otp",
+    "react-resizable-panels",
+    "recharts",
+    "shadcn",
+    "tailwind-merge",
+    "vaul"
+  ],
+  "audit": {
+    "gate": "new-only"
+  }
+}

@@ -48,9 +48,8 @@ export function CreateTaskForm() {
         form.handleSubmit()
       }}
     >
-      <form.Field
-        name="title"
-        children={(field) => {
+      <form.Field name="title">
+        {(field) => {
           const errors = field.state.meta.errors
           const isInvalid = field.state.meta.isTouched && errors.length > 0
 
@@ -67,7 +66,7 @@ export function CreateTaskForm() {
             </Field>
           )
         }}
-      />
+      </form.Field>
 
       <Button
         disabled={form.state.isSubmitting}

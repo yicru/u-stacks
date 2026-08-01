@@ -127,5 +127,3 @@ export class TaskService extends Context.Service<
     }),
   )
 }
-
-export const TaskServiceLive = TaskService.Live

@@ -16,19 +16,20 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 - shadcn/ui on the Base UI registry
 - Tailwind CSS v4
 - Vitest integration, service, contract, and client tests
+- React Doctor diagnostics and Fallow structural quality gates
 - Interactive `bun run setup` for app rename and Turso configuration
 
 ## Tech Stack
 
-| Layer         | Technology                        |
-| ------------- | --------------------------------- |
-| App framework | TanStack Start                    |
-| API           | Effect HTTP API + Effect Schema   |
-| Database      | Turso + Drizzle ORM               |
-| Runtime       | Cloudflare Workers                |
-| UI            | React 19 + shadcn/ui (Base UI)    |
-| Styling       | Tailwind CSS v4                   |
-| Tooling       | Bun, Vite+, oxlint, oxfmt, Vitest |
+| Layer         | Technology                                              |
+| ------------- | ------------------------------------------------------- |
+| App framework | TanStack Start                                          |
+| API           | Effect HTTP API + Effect Schema                         |
+| Database      | Turso + Drizzle ORM                                     |
+| Runtime       | Cloudflare Workers                                      |
+| UI            | React 19 + shadcn/ui (Base UI)                          |
+| Styling       | Tailwind CSS v4                                         |
+| Tooling       | Bun, Vite+, oxlint, oxfmt, Vitest, React Doctor, Fallow |
 
 ## Quick Start
 
@@ -74,6 +75,10 @@ TURSO_AUTH_TOKEN=your-auth-token
 | `bun run test`            | Run tests with Vitest                                       |
 | `bun run lint`            | Run typecheck, lint, and format checks                      |
 | `bun run format`          | Apply lint fixes and formatting                             |
+| `bun run doctor`          | Scan React code for correctness and design issues           |
+| `bun run fallow`          | Report dead code, duplication, and complexity               |
+| `bun run fallow:audit`    | Gate newly introduced structural issues                     |
+| `bun run quality`         | Run lint, tests, React Doctor, and the full Fallow scan     |
 | `bun run db:generate`     | Generate Drizzle migrations from schema changes             |
 | `bun run db:migrate`      | Push schema changes using `.dev.vars`                       |
 | `bun run db:migrate:prod` | Push schema changes using `.dev.vars.production`            |

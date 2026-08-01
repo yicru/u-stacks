@@ -14,7 +14,6 @@ export const PaginationQuery = Schema.Struct({
   page: Page.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(1))),
   perPage: PerPage.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(10))),
 })
-export type PaginationQuery = typeof PaginationQuery.Type
 
 export const PaginationMeta = Schema.Struct({
   page: Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1)),
