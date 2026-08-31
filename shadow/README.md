@@ -43,7 +43,9 @@ bun run db:migrate
 bun run dev
 ```
 
-Open `https://my-app.localhost` after the dev server starts. On first run, portless may ask to trust a local development CA. Named worktrees receive Portless's branch prefix; detached worktrees receive a stable suffix derived from the worktree ID.
+Open `https://my-app.localhost:1355` after the dev server starts. The template uses Portless's unprivileged port `1355` by default, so local startup does not require `sudo`, including from non-interactive task runners. On first run, Portless may ask to trust a local development CA. Named worktrees receive Portless's branch prefix; detached worktrees receive a stable suffix derived from the worktree ID.
+
+Set `PORTLESS_PORT` to override the proxy port. For example, `PORTLESS_PORT=443 bun run dev` uses a URL without a port number, but port `443` must be available and may require `sudo` on macOS or Linux.
 
 ## Setup Flow
 
@@ -72,7 +74,7 @@ TURSO_AUTH_TOKEN=
 | Command                   | Description                                                 |
 | ------------------------- | ----------------------------------------------------------- |
 | `bun run setup`           | Initialize the template and optionally configure Turso      |
-| `bun run dev`             | Start local Turso and the app through portless              |
+| `bun run dev`             | Start local Turso and the app through portless on port 1355 |
 | `bun run build`           | Build for production                                        |
 | `bun run preview`         | Start local Turso, build, and preview the production output |
 | `bun run test`            | Run tests with Vitest                                       |

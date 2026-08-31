@@ -53,7 +53,7 @@
         "drizzle-kit": "^0.31.10",
         "fallow": "3.6.0",
         "jsdom": "^29.1.1",
-        "portless": "^0.14.0",
+        "portless": "^0.15.6",
         "react-doctor": "0.8.1",
         "scaffdog": "^4.1.0",
         "shadcn": "^4.11.0",
@@ -1715,7 +1715,7 @@
 
     "pngjs": ["pngjs@7.0.0", "https://npm.flatt.tech/pngjs/-/pngjs-7.0.0.tgz", {}, "sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow=="],
 
-    "portless": ["portless@0.14.0", "https://npm.flatt.tech/portless/-/portless-0.14.0.tgz", { "os": [ "linux", "win32", "darwin", ], "bin": { "portless": "dist/cli.js" } }, "sha512-kKxmxB1DQ9gI8t+V13VhuwTXu31io5nbFubvZAE82AxzXBsvcJV7qQJbmomrQUpbVxo2UVHqs14iX4YK0BClmQ=="],
+    "portless": ["portless@0.15.6", "", { "os": [ "linux", "win32", "darwin", ], "bin": { "portless": "dist/cli.js" } }, "sha512-uOAwWLF32rmyEGFASzSO0VOaqb/AQxFCCzyZbPGd82UNNOfIEvc09zy92nroNibE5HNfzV4oVB0ObKbPXgkM9A=="],
 
     "postcss": ["postcss@8.5.6", "https://npm.flatt.tech/postcss/-/postcss-8.5.6.tgz", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg=="],
 

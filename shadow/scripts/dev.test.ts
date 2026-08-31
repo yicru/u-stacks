@@ -39,7 +39,10 @@ describe('local development', () => {
       cwd: ROOT,
       env: {
         ...process.env,
+        CI: '1',
         PATH: `${binDirectory}:${process.env.PATH}`,
+        PORTLESS_PORT: '',
+        SHADOW_DEV_TEST_REQUIRE_UNPRIVILEGED_PORT: '1',
         SHADOW_DEV_TEST_LOG: logPath,
         TURSO_DEV_DB_FILE: databasePath,
         TURSO_DEV_PORT: String(port),
@@ -58,6 +61,7 @@ describe('local development', () => {
       `turso dev --port ${port} --db-file ${databasePath}`,
     )
     expect(processLog).toContain('portless run vp dev')
+    expect(processLog).toContain('portless-port 1355')
     expect(processLog).toContain(`database http://127.0.0.1:${port}`)
     expect(processLog).toContain(`local http://127.0.0.1:${port}`)
     expect(processLog).toContain('turso stopped')
@@ -222,6 +226,7 @@ describe('local development', () => {
       env: {
         ...process.env,
         PATH: `${binDirectory}:${process.env.PATH}`,
+        PORTLESS_PORT: '8443',
         SHADOW_DEV_TEST_LOG: logPath,
         TURSO_DEV_DB_FILE: databasePath,
         TURSO_DEV_PORT: String(port),
@@ -239,6 +244,7 @@ describe('local development', () => {
     expect(processLog).toContain(
       `portless run --name ${packageJson.name}-35a1 vp dev`,
     )
+    expect(processLog).toContain('portless-port 8443')
   })
 
   test('reports a missing Turso CLI immediately', async () => {
@@ -318,8 +324,13 @@ process.on('SIGINT', stop)
     `#!/usr/bin/env node
 const fs = require('node:fs')
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`portless \${process.argv.slice(2).join(' ')}\\n\`)
+fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`portless-port \${process.env.PORTLESS_PORT}\\n\`)
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`database \${process.env.TURSO_DATABASE_URL}\\n\`)
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`local \${process.env.SHADOW_LOCAL_TURSO_URL}\\n\`)
+if (process.env.SHADOW_DEV_TEST_REQUIRE_UNPRIVILEGED_PORT && process.env.PORTLESS_PORT !== '1355') {
+  console.error('Proxy is not running and no TTY is available for sudo.')
+  process.exit(1)
+}
 const stop = () => {
   fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, 'app stopped\\n')
   process.exit(0)
