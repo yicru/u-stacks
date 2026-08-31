@@ -6,6 +6,7 @@ import { basename, dirname, resolve } from 'node:path'
 const ROOT = resolve(import.meta.dirname, '..')
 const DEFAULT_DATABASE_FILE = '.turso/dev.db'
 const DEFAULT_PORT = 8080
+const DEFAULT_PORTLESS_PROXY_PORT = '1355'
 const STARTUP_TIMEOUT_MS = 10_000
 const STARTUP_STABILITY_MS = 50
 
@@ -138,7 +139,10 @@ function spawnApp(runtimeMode: Mode, env: NodeJS.ProcessEnv): ChildProcess {
 
   return spawn('portless', args, {
     cwd: ROOT,
-    env,
+    env: {
+      ...env,
+      PORTLESS_PORT: env.PORTLESS_PORT || DEFAULT_PORTLESS_PROXY_PORT,
+    },
     stdio: 'inherit',
   })
 }

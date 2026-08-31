@@ -74,7 +74,7 @@
     "drizzle-kit": "^0.31.10",
     "fallow": "3.6.0",
     "jsdom": "^29.1.1",
-    "portless": "^0.14.0",
+    "portless": "^0.15.6",
     "react-doctor": "0.8.1",
     "scaffdog": "^4.1.0",
     "shadcn": "^4.11.0",
