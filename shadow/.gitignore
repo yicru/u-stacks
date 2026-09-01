@@ -12,6 +12,7 @@ dist-ssr
 .fallow
 .output
 .vinxi
+.repos/effect
 .cloudflare.json
 __unconfig*
 todos.json
