@@ -1,6 +1,15 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { basename, join, resolve } from 'node:path'
+import {
+  findCloudflareCredentialEnvironmentVariable,
+  isNamedCloudflareProfile,
+  parseCloudflareAccounts,
+  parseCloudflareConfiguration,
+  suppressCloudflareCredentialEnvironmentVariables,
+  type CloudflareAccount,
+  type CloudflareConfiguration as StoredCloudflareConfiguration,
+} from './cloudflare-config'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const PACKAGE_JSON_PATH = join(ROOT, 'package.json')
@@ -10,6 +19,13 @@ const ROOT_ROUTE_PATH = join(ROOT, 'src/routes/__root.tsx')
 const README_PATH = join(ROOT, 'README.md')
 const DEV_VARS_PATH = join(ROOT, '.dev.vars')
 const DEV_VARS_PRODUCTION_PATH = join(ROOT, '.dev.vars.production')
+const CLOUDFLARE_CONFIG_PATH = join(ROOT, '.cloudflare.json')
+const LOCAL_WRANGLER_PATH = join(
+  ROOT,
+  'node_modules',
+  '.bin',
+  process.platform === 'win32' ? 'wrangler.cmd' : 'wrangler',
+)
 
 type PackageJson = {
   name?: string
@@ -32,6 +48,11 @@ type GroupSelection =
   | { kind: 'manual' }
   | { kind: 'invalid' }
 
+type CloudflareConfiguration = {
+  profile: string
+  account: CloudflareAccount
+}
+
 const args = process.argv.slice(2).filter((arg) => !arg.endsWith('setup.ts'))
 const cliName = args[0]?.trim()
 const defaultAppName = toKebabCase(basename(ROOT)) || 'shadow'
@@ -50,6 +71,7 @@ updateReadme(appName)
 configureLocalTurso()
 
 const productionTursoConfigured = configureProductionTurso(appName)
+const cloudflareConfiguration = configureCloudflareDeployment()
 
 console.log(`✨ Project configured as "${appName}"`)
 console.log('✨ Local Turso dev server variables have been set.')
@@ -58,6 +80,19 @@ if (productionTursoConfigured) {
 } else {
   console.log(
     'ℹ️ Production Turso setup was skipped. Configure .dev.vars.production before deploying.',
+  )
+}
+if (cloudflareConfiguration) {
+  const { profile, account } = cloudflareConfiguration
+  console.log(
+    `✨ Cloudflare profile "${profile}" is pinned to ${account.name} (${account.id}).`,
+  )
+  console.log(
+    'ℹ️ Cloudflare resources and API tokens were not created. Add bindings during development, then run `bun run cloudflare -- plan`.',
+  )
+} else {
+  console.log(
+    'ℹ️ Cloudflare setup was skipped; any existing deployment configuration was left unchanged.',
   )
 }
 
@@ -348,6 +383,385 @@ function writeTursoEnv(
     },
   )
   writeFileSync(filePath, `${updated}\n`)
+}
+
+function configureCloudflareDeployment(): CloudflareConfiguration | null {
+  if (!confirm('Configure Cloudflare deployment now? (y/N):', false)) {
+    return null
+  }
+
+  const wranglerCommand = prepareWranglerCommand()
+  if (!wranglerCommand) {
+    return null
+  }
+
+  return configureCloudflareWithWrangler(wranglerCommand)
+}
+
+function prepareWranglerCommand(): string | null {
+  const credentialEnvironmentVariable =
+    findCloudflareCredentialEnvironmentVariable(process.env)
+  if (credentialEnvironmentVariable) {
+    console.error(
+      `Unset ${credentialEnvironmentVariable} before configuring a named Cloudflare profile.`,
+    )
+    return null
+  }
+
+  const wranglerCommand = resolveWranglerCommand()
+  if (!wranglerCommand) {
+    console.error(
+      'Wrangler was not found. Run `bun install`, then run `bun run setup` again.',
+    )
+    return null
+  }
+
+  return wranglerCommand
+}
+
+function configureCloudflareWithWrangler(
+  wranglerCommand: string,
+): CloudflareConfiguration | null {
+  const configuration = resolveCloudflareConfiguration(wranglerCommand)
+  if (!configuration) {
+    return null
+  }
+
+  persistCloudflareConfiguration(configuration)
+  return configuration
+}
+
+function resolveCloudflareConfiguration(
+  wranglerCommand: string,
+): CloudflareConfiguration | null {
+  const currentConfiguration = readStoredCloudflareConfiguration()
+  const profile = resolveCloudflareProfile(
+    wranglerCommand,
+    currentConfiguration?.profile,
+  )
+  if (!profile) {
+    return null
+  }
+
+  return resolveCloudflareAccount(
+    wranglerCommand,
+    profile,
+    currentConfiguration?.accountId,
+  )
+}
+
+function resolveCloudflareProfile(
+  wranglerCommand: string,
+  currentProfile?: string,
+): string | null {
+  const profile = askCloudflareProfile(currentProfile)
+  return ensureCloudflareProfile(wranglerCommand, profile) ? profile : null
+}
+
+function resolveCloudflareAccount(
+  wranglerCommand: string,
+  profile: string,
+  currentAccountId?: string,
+): CloudflareConfiguration | null {
+  const accounts = getCloudflareAccountsWithRecovery(wranglerCommand, profile)
+  if (!accounts) {
+    return null
+  }
+
+  const account = selectCloudflareAccount(accounts, currentAccountId)
+  return { profile, account }
+}
+
+function persistCloudflareConfiguration(
+  configuration: CloudflareConfiguration,
+): void {
+  const { profile, account } = configuration
+  const storedConfiguration = {
+    profile,
+    accountId: account.id,
+  } satisfies StoredCloudflareConfiguration
+
+  writeJson(CLOUDFLARE_CONFIG_PATH, storedConfiguration)
+  updateWranglerAccountId(account.id)
+}
+
+function resolveWranglerCommand(): string | null {
+  if (existsSync(LOCAL_WRANGLER_PATH)) {
+    return LOCAL_WRANGLER_PATH
+  }
+
+  return hasCommand('wrangler') ? 'wrangler' : null
+}
+
+function askCloudflareProfile(currentProfile?: string): string {
+  const profile = askRequired(
+    cloudflareProfileQuestion(currentProfile),
+    currentProfile || '',
+  )
+  if (isNamedCloudflareProfile(profile)) {
+    return profile
+  }
+
+  console.log(
+    'Use a named profile containing only letters, numbers, hyphens, or underscores.',
+  )
+  return askCloudflareProfile(currentProfile)
+}
+
+function cloudflareProfileQuestion(currentProfile?: string): string {
+  const suffix = currentProfile ? ` (${currentProfile})` : ''
+  return `Cloudflare Wrangler profile name${suffix}:`
+}
+
+function ensureCloudflareProfile(
+  wranglerCommand: string,
+  profile: string,
+): boolean {
+  const activation = activateCloudflareProfile(wranglerCommand, profile)
+  if (activation.ok) {
+    return true
+  }
+
+  console.log(
+    `ℹ️ ${activation.detail || `Cloudflare profile "${profile}" is not available.`}`,
+  )
+  if (
+    !confirm(
+      `Create or re-authenticate Cloudflare profile "${profile}" now? (Y/n):`,
+      true,
+    )
+  ) {
+    return false
+  }
+
+  return createAndActivateCloudflareProfile(wranglerCommand, profile)
+}
+
+function createAndActivateCloudflareProfile(
+  wranglerCommand: string,
+  profile: string,
+): boolean {
+  const created = spawnSync(wranglerCommand, ['auth', 'create', profile], {
+    cwd: ROOT,
+    env: suppressCloudflareCredentialEnvironmentVariables(process.env),
+    stdio: 'inherit',
+  })
+  if (created.status !== 0) {
+    console.error(
+      `Failed to create or re-authenticate Cloudflare profile "${profile}".`,
+    )
+    return false
+  }
+
+  const retry = activateCloudflareProfile(wranglerCommand, profile)
+  if (retry.ok) {
+    return true
+  }
+
+  console.error(
+    retry.detail || `Failed to activate Cloudflare profile "${profile}".`,
+  )
+  return false
+}
+
+function activateCloudflareProfile(
+  wranglerCommand: string,
+  profile: string,
+): { ok: boolean; detail: string } {
+  const result = spawnSync(
+    wranglerCommand,
+    ['auth', 'activate', profile, ROOT],
+    {
+      cwd: ROOT,
+      encoding: 'utf-8',
+      env: suppressCloudflareCredentialEnvironmentVariables(process.env),
+    },
+  )
+
+  return {
+    ok: result.status === 0,
+    detail: [result.stdout, result.stderr].join('\n').trim(),
+  }
+}
+
+function getCloudflareAccountsWithRecovery(
+  wranglerCommand: string,
+  profile: string,
+): CloudflareAccount[] | null {
+  const accounts = tryGetCloudflareAccounts(wranglerCommand)
+  if (accounts) {
+    return accounts
+  }
+
+  if (
+    !confirm(
+      `Re-authenticate Cloudflare profile "${profile}" now? (Y/n):`,
+      true,
+    )
+  ) {
+    return null
+  }
+
+  if (!createAndActivateCloudflareProfile(wranglerCommand, profile)) {
+    return null
+  }
+
+  return tryGetCloudflareAccounts(wranglerCommand)
+}
+
+function tryGetCloudflareAccounts(
+  wranglerCommand: string,
+): CloudflareAccount[] | null {
+  try {
+    return getCloudflareAccounts(wranglerCommand)
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Failed to read Cloudflare accounts.'
+    console.log(`ℹ️ ${message}`)
+    return null
+  }
+}
+
+function getCloudflareAccounts(wranglerCommand: string): CloudflareAccount[] {
+  const result = spawnSync(wranglerCommand, ['whoami', '--json'], {
+    cwd: ROOT,
+    encoding: 'utf-8',
+    env: suppressCloudflareCredentialEnvironmentVariables(process.env),
+  })
+  const detail = [result.stdout, result.stderr].join('\n').trim()
+
+  if (result.status !== 0) {
+    throw new Error(detail || 'Failed to read Cloudflare accounts.')
+  }
+
+  const accounts = parseCloudflareAccounts(JSON.parse(result.stdout))
+  if (accounts.length === 0) {
+    throw new Error('Wrangler returned an invalid account list.')
+  }
+
+  return accounts
+}
+
+function selectCloudflareAccount(
+  accounts: CloudflareAccount[],
+  currentAccountId?: string,
+): CloudflareAccount {
+  console.log('Available Cloudflare accounts:')
+  accounts.forEach((account, index) => {
+    console.log(`${index + 1}. ${account.name} (${account.id})`)
+  })
+
+  const currentIndex = accounts.findIndex(
+    (account) => account.id === currentAccountId,
+  )
+  const defaultIndex = currentIndex >= 0 ? currentIndex + 1 : 1
+
+  while (true) {
+    const answer = ask(
+      `Select a Cloudflare account [1-${accounts.length}] (${defaultIndex}):`,
+    )
+    const selectedAccount = resolveCloudflareAccountSelection(
+      accounts,
+      answer,
+      defaultIndex,
+    )
+    if (selectedAccount) {
+      return selectedAccount
+    }
+
+    console.log('Choose one of the listed accounts.')
+  }
+}
+
+function resolveCloudflareAccountSelection(
+  accounts: CloudflareAccount[],
+  answer: string | null,
+  defaultIndex: number,
+): CloudflareAccount | null {
+  const indexedAccount = findCloudflareAccountByIndex(
+    accounts,
+    answer,
+    defaultIndex,
+  )
+  if (indexedAccount) {
+    return indexedAccount
+  }
+
+  return (
+    accounts.find((account) => matchesCloudflareAccount(account, answer)) ??
+    null
+  )
+}
+
+function findCloudflareAccountByIndex(
+  accounts: CloudflareAccount[],
+  answer: string | null,
+  defaultIndex: number,
+): CloudflareAccount | null {
+  const selectedIndex = Number(answer ?? defaultIndex)
+  if (Number.isInteger(selectedIndex)) {
+    return accounts[selectedIndex - 1] ?? null
+  }
+
+  return null
+}
+
+function matchesCloudflareAccount(
+  account: CloudflareAccount,
+  answer: string | null,
+): boolean {
+  return account.id === answer || account.name === answer
+}
+
+function readStoredCloudflareConfiguration(): StoredCloudflareConfiguration | null {
+  if (!existsSync(CLOUDFLARE_CONFIG_PATH)) {
+    return null
+  }
+
+  try {
+    const parsed = parseCloudflareConfiguration(
+      JSON.parse(readFileSync(CLOUDFLARE_CONFIG_PATH, 'utf-8')),
+    )
+    if (parsed) {
+      return parsed
+    }
+  } catch {
+    return reportUnreadableCloudflareConfiguration()
+  }
+
+  return reportUnreadableCloudflareConfiguration()
+}
+
+function reportUnreadableCloudflareConfiguration(): null {
+  console.log(
+    'ℹ️ Existing .cloudflare.json could not be read and will be replaced.',
+  )
+  return null
+}
+
+function updateWranglerAccountId(accountId: string): void {
+  const currentConfig = readFileSync(WRANGLER_CONFIG_PATH, 'utf-8')
+  const accountPattern = /^(\s*"account_id"\s*:\s*)"[^"]*"/m
+
+  if (accountPattern.test(currentConfig)) {
+    writeFileSync(
+      WRANGLER_CONFIG_PATH,
+      currentConfig.replace(accountPattern, `$1"${accountId}"`),
+    )
+    return
+  }
+
+  const nextConfig = currentConfig.replace(
+    /^(\s*)("name"\s*:\s*"[^"]+")\s*,?\s*$/m,
+    `$1$2,\n$1"account_id": "${accountId}",`,
+  )
+  if (nextConfig === currentConfig) {
+    throw new Error('Could not add account_id to wrangler.jsonc.')
+  }
+
+  writeFileSync(WRANGLER_CONFIG_PATH, nextConfig)
 }
 
 function updateEnvContent(

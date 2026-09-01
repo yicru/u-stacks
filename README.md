@@ -7,7 +7,8 @@
 ```shell
 npx degit yicru/u-stacks/shadow my-app
 cd my-app
-bun scripts/setup.ts
+bun install
+bun run setup
 ```
 
 ### Tails Stack
