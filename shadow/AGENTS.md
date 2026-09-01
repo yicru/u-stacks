@@ -120,6 +120,10 @@ Keep `@libsql/client` at exactly `0.17.4`. This version uses native `fetch` and 
 
 Local development uses the HTTP endpoint started by `bun run dev`; Workers must not receive a `file:` URL. Drizzle migration and Studio commands access `.turso/dev.db` directly, while remote credentials belong only in `.dev.vars.production`.
 
+Named Wrangler profile and account selection belong in the ignored `.cloudflare.json`; the same account must be pinned as `account_id` in `wrangler.jsonc`. Run remote Wrangler operations through `bun run cloudflare -- <command>` so `--profile` and `CLOUDFLARE_ACCOUNT_ID` are applied together. Do not use direct remote Wrangler commands or ambient Cloudflare credential environment variables.
+
+Cloudflare setup stores identity and account selection only. Add bindings during development, then use `cloudflare status`, `cloudflare plan`, and `cloudflare apply --yes` before deploy. Managed apply supports create-only KV, D1, and R2 provisioning and persists identifiers through Wrangler. It never deletes or rolls back resources. Deploy must stop on unresolved resources and keep Wrangler automatic provisioning disabled.
+
 ### SSR self-reference
 
 `src/start.ts` sets `defaultSsr: false`. Route loaders therefore call `/api` from the browser. Enabling SSR for a route can make the Worker fetch itself, which Cloudflare Workers rejects. Use a server-side service call for SSR data loading.
@@ -146,6 +150,10 @@ bun run db:generate
 bun run db:migrate
 bun run db:migrate:prod
 bun run db:studio
+bun run cloudflare -- status
+bun run cloudflare -- plan
+bun run cloudflare -- apply --yes
+bun run cloudflare -- <command>
 bun run deploy
 bun run cf-typegen
 ```
