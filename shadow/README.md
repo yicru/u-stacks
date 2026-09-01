@@ -56,6 +56,8 @@ During setup you can:
 - rename the project
 - update the portless local app name
 - write the local Turso URL into `.dev.vars`
+- register `.dev.vars`, `.dev.vars.production`, and `.cloudflare.json` in `.worktreeinclude`
+- register the T3 Code worktree setup action in `t3.json`
 - optionally create a production Turso database or connect to an existing one
 - choose a Turso group from a detected list or enter one manually
 - write production credentials into `.dev.vars.production`
@@ -64,6 +66,12 @@ During setup you can:
 - pin the profile and account for future Cloudflare commands
 
 Setup intentionally does not create Cloudflare resources or API tokens. Resource requirements can be added to `wrangler.jsonc` as the application develops, then reviewed and applied separately.
+
+Setup writes `.worktreeinclude` at the Git repository root so ignored local files can be copied into Codex, Claude Code, and compatible worktrees. It registers `.dev.vars`, `.dev.vars.production`, and `.cloudflare.json`. In a monorepo, entries include the app's repository-relative directory, while a standalone app uses root-relative entries. Existing patterns are preserved and repeated setup is idempotent.
+
+Setup also creates or updates the Git root `t3.json` without removing existing project settings or scripts. Its worktree creation action calls a small runner with three ordered steps: apply `.worktreeinclude`, run `bun install --frozen-lockfile`, and prepare `.repos/effect` at the tag matching the installed Effect package. Each operation remains in its own helper script. The runner uses the Node.js, Bun, and Git installations already required by the project, so no additional CLI is required. Included-file copying is limited to untracked files that are ignored by Git, skips symbolic links, and never overwrites an existing worktree file. Effect source setup preserves local changes instead of switching versions over them.
+
+If the repository was already open in T3 Code, import the updated project scripts after setup.
 
 Local development does not use a remote Turso database. The generated `.dev.vars` contains:
 

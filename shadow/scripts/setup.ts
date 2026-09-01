@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { basename, join, resolve } from 'node:path'
+import { basename, join, relative, resolve } from 'node:path'
 import {
   findCloudflareCredentialEnvironmentVariable,
   isNamedCloudflareProfile,
@@ -20,6 +20,16 @@ const README_PATH = join(ROOT, 'README.md')
 const DEV_VARS_PATH = join(ROOT, '.dev.vars')
 const DEV_VARS_PRODUCTION_PATH = join(ROOT, '.dev.vars.production')
 const CLOUDFLARE_CONFIG_PATH = join(ROOT, '.cloudflare.json')
+const WORKTREE_INCLUDE_FILE_NAMES = [
+  '.dev.vars',
+  '.cloudflare.json',
+  '.dev.vars.production',
+]
+const WORKTREE_SETUP_SCRIPT_PATH = join(ROOT, 'scripts', 'setup-worktree.mjs')
+const EFFECT_SOURCE_IGNORE_PATTERN = '/.repos/effect/'
+const T3_SCHEMA_URL = 'https://t3.codes/schema/t3.json'
+const T3_WORKTREE_SETUP_SCRIPT_NAME = 'Setup Shadow Worktree'
+const LEGACY_T3_WORKTREE_SETUP_SCRIPT_NAME = 'Apply .worktreeinclude'
 const LOCAL_WRANGLER_PATH = join(
   ROOT,
   'node_modules',
@@ -69,12 +79,18 @@ renameProject(appName)
 ensureSetupScript()
 updateReadme(appName)
 configureLocalTurso()
+const repositoryRoot = findRepositoryRoot()
+configureWorktreeIncludes(repositoryRoot)
+configureEffectSourceIgnore(repositoryRoot)
+configureT3Project(repositoryRoot)
 
 const productionTursoConfigured = configureProductionTurso(appName)
 const cloudflareConfiguration = configureCloudflareDeployment()
 
 console.log(`✨ Project configured as "${appName}"`)
 console.log('✨ Local Turso dev server variables have been set.')
+console.log('✨ Worktree local files have been registered.')
+console.log('✨ T3 Code worktree setup has been registered.')
 if (productionTursoConfigured) {
   console.log('✨ Production Turso environment variables have been set.')
 } else {
@@ -98,6 +114,188 @@ if (cloudflareConfiguration) {
 
 function configureLocalTurso(): void {
   writeTursoEnv(DEV_VARS_PATH, 'http://127.0.0.1:8080', '')
+}
+
+function configureWorktreeIncludes(repositoryRoot: string): void {
+  const worktreeIncludePath = join(repositoryRoot, '.worktreeinclude')
+  const patterns = WORKTREE_INCLUDE_FILE_NAMES.map((fileName) => {
+    const filePath = join(ROOT, fileName)
+    return `/${relative(repositoryRoot, filePath).replaceAll('\\', '/')}`
+  })
+  const currentContent = existsSync(worktreeIncludePath)
+    ? readFileSync(worktreeIncludePath, 'utf-8')
+    : ''
+  const missingPatterns = patterns.filter(
+    (pattern) => !hasActivePattern(currentContent, pattern),
+  )
+
+  if (missingPatterns.length === 0) {
+    return
+  }
+
+  const prefix =
+    currentContent.length === 0 || currentContent.endsWith('\n')
+      ? currentContent
+      : `${currentContent}\n`
+  writeFileSync(worktreeIncludePath, `${prefix}${missingPatterns.join('\n')}\n`)
+}
+
+function configureT3Project(repositoryRoot: string): void {
+  const t3ProjectPath = join(repositoryRoot, 't3.json')
+  const configuration = readT3Project(t3ProjectPath)
+  const scripts = readT3Scripts(configuration)
+  const worktreeSetupScript = createT3WorktreeSetupScript(repositoryRoot)
+  const scriptIndex = scripts.findIndex(
+    (script) =>
+      script.name === worktreeSetupScript.name ||
+      script.name === LEGACY_T3_WORKTREE_SETUP_SCRIPT_NAME ||
+      script.command === worktreeSetupScript.command,
+  )
+
+  if (scriptIndex === -1) {
+    scripts.push(worktreeSetupScript)
+  } else {
+    scripts[scriptIndex] = {
+      ...scripts[scriptIndex],
+      ...worktreeSetupScript,
+    }
+  }
+
+  const { $schema, ...otherConfiguration } = configuration
+  writeJson(t3ProjectPath, {
+    $schema: typeof $schema === 'string' ? $schema : T3_SCHEMA_URL,
+    ...otherConfiguration,
+    scripts,
+  })
+}
+
+function configureEffectSourceIgnore(repositoryRoot: string): void {
+  const gitIgnorePath = join(repositoryRoot, '.gitignore')
+  const currentContent = existsSync(gitIgnorePath)
+    ? readFileSync(gitIgnorePath, 'utf-8')
+    : ''
+
+  if (hasActiveDirectoryPattern(currentContent, EFFECT_SOURCE_IGNORE_PATTERN)) {
+    return
+  }
+
+  const prefix =
+    currentContent.length === 0 || currentContent.endsWith('\n')
+      ? currentContent
+      : `${currentContent}\n`
+  writeFileSync(gitIgnorePath, `${prefix}${EFFECT_SOURCE_IGNORE_PATTERN}\n`)
+}
+
+function createT3WorktreeSetupScript(
+  repositoryRoot: string,
+): Record<string, unknown> {
+  const scriptPath = relative(
+    repositoryRoot,
+    WORKTREE_SETUP_SCRIPT_PATH,
+  ).replaceAll('\\', '/')
+
+  return {
+    name: T3_WORKTREE_SETUP_SCRIPT_NAME,
+    command: `node ${quoteShellArgument(scriptPath)}`,
+    icon: 'configure',
+    runOnWorktreeCreate: true,
+  }
+}
+
+function quoteShellArgument(value: string): string {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`
+}
+
+function hasActiveDirectoryPattern(content: string, pattern: string): boolean {
+  const withoutLeadingSlash = pattern.replace(/^\//, '')
+  const withoutTrailingSlash = pattern.replace(/\/$/, '')
+  const equivalentPatterns = new Set([
+    pattern,
+    withoutLeadingSlash,
+    withoutTrailingSlash,
+    withoutLeadingSlash.replace(/\/$/, ''),
+  ])
+  let active = false
+
+  for (const line of content.split(/\r?\n/)) {
+    const candidate = line.trim()
+    if (equivalentPatterns.has(candidate)) {
+      active = true
+    } else if (
+      candidate.startsWith('!') &&
+      equivalentPatterns.has(candidate.slice(1))
+    ) {
+      active = false
+    }
+  }
+
+  return active
+}
+
+function readT3Project(filePath: string): Record<string, unknown> {
+  if (!existsSync(filePath)) {
+    return {}
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(filePath, 'utf-8'))
+    if (isRecord(parsed)) {
+      return parsed
+    }
+  } catch {
+    throw new Error('Existing t3.json is not valid JSON.')
+  }
+
+  throw new Error('Existing t3.json must contain a JSON object.')
+}
+
+function readT3Scripts(
+  configuration: Record<string, unknown>,
+): Record<string, unknown>[] {
+  if (configuration.scripts === undefined) {
+    return []
+  }
+  if (
+    !Array.isArray(configuration.scripts) ||
+    !configuration.scripts.every(isRecord)
+  ) {
+    throw new Error('Existing t3.json scripts must be an array of objects.')
+  }
+
+  return configuration.scripts.map((script) => ({ ...script }))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function findRepositoryRoot(): string {
+  const result = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+    cwd: ROOT,
+    encoding: 'utf-8',
+  })
+  const repositoryRoot = result.stdout.trim()
+
+  return result.status === 0 && repositoryRoot ? resolve(repositoryRoot) : ROOT
+}
+
+function hasActivePattern(content: string, pattern: string): boolean {
+  const equivalentPatterns = new Set([pattern, pattern.slice(1)])
+  let active = false
+
+  for (const line of content.split(/\r?\n/)) {
+    const candidate = line.trim()
+    if (equivalentPatterns.has(candidate)) {
+      active = true
+    } else if (
+      candidate.startsWith('!') &&
+      equivalentPatterns.has(candidate.slice(1))
+    ) {
+      active = false
+    }
+  }
+
+  return active
 }
 
 function configureProductionTurso(projectName: string): boolean {
