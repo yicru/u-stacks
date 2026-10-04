@@ -17,6 +17,11 @@ const CLOUDFLARE_CREDENTIAL_ENV_NAMES = [
   'CF_EMAIL',
 ] as const
 
+export function resolveCloudflareCommand(root: string): string | null {
+  const command = join(root, 'node_modules', 'cf', 'bin', 'cf')
+  return existsSync(command) ? command : null
+}
+
 export function parseCloudflareConfiguration(
   value: unknown,
 ): CloudflareConfiguration | null {
@@ -119,3 +124,5 @@ function readArray(value: unknown, key: string): unknown[] | null {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'

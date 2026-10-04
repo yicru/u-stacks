@@ -148,7 +148,10 @@ function spawnApp(runtimeMode: Mode, env: NodeJS.ProcessEnv): ChildProcess {
 }
 
 function updatePreviewEnv(port: number): void {
-  const previewEnvPath = resolve(ROOT, 'dist/server/.dev.vars')
+  const previewEnvPath = resolve(
+    ROOT,
+    '.cloudflare/output/v0/workers/default/.dev.vars',
+  )
   if (!existsSync(previewEnvPath)) {
     return
   }

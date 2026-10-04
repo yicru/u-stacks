@@ -90,7 +90,7 @@ u-stacks/
 - Auto-generated files — do not edit:
   - `tails/cloudflare-env.d.ts` (Wrangler)
   - `tails/server/db/auth-schema.ts` (Better Auth)
-  - `shadow/worker-configuration.d.ts` (Wrangler)
+  - `shadow/.cloudflare/types/index.d.ts` (cf)
   - `shadow/src/routeTree.gen.ts` (TanStack Router)
 - shadow: `@libsql/client` pinned to `0.17.4` — it uses native fetch after the cross-fetch workerd regression
 - shadow: Do NOT import `server/` from browser code — use the shared Effect contract and `HttpApiClient`; only `src/routes/api/$.ts` is the server bridge
@@ -119,7 +119,7 @@ bun run generate:module  # scaffdog module CRUD generation
 - Stacks are NOT a monorepo workspace — no root package.json
 - Only Sonic has GitHub Actions CI (`deploy-sonic.yml` → Fly.io)
 - Tails deploys via OpenNext to Cloudflare Pages (`npm run deploy:production`)
-- Shadow deploys via Wrangler to Cloudflare Workers (`bun run deploy`)
+- Shadow deploys via the cf CLI to Cloudflare Workers (`bun run deploy`)
 - shadow has an Effect module pattern: shared contract plus handler, service, and test Layers
-- Shadow has `scripts/setup.ts` for template initialization (`bun run setup` replaces app name in package.json, wrangler.jsonc, .cta.json)
+- Shadow has `scripts/setup.ts` for template initialization (`bun run setup` replaces app name in package.json, cloudflare.config.ts, .cta.json)
 - Shadow's shadcn/ui (Base UI) includes custom components not in standard shadcn: combobox, input-group, button-group, empty, field, item, kbd, native-select, spinner

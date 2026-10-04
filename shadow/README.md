@@ -12,7 +12,7 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 - Effect `Context.Service` and Layer-based services
 - Generated `HttpApiClient` for type-safe browser calls
 - Drizzle ORM with Turso / libSQL
-- Cloudflare Workers deployment via Wrangler
+- Cloudflare Workers deployment via the cf CLI (beta)
 - shadcn/ui on the Base UI registry
 - Tailwind CSS v4
 - Vitest integration, service, contract, and client tests
@@ -32,6 +32,8 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 | Tooling       | Bun, Vite+, oxlint, oxfmt, Vitest, React Doctor, Fallow |
 
 ## Quick Start
+
+Use Node.js 22.18 or later and Bun. cf loads TypeScript configuration with Node.js; dependency management and project scripts use Bun.
 
 ```bash
 brew install tursodatabase/tap/turso
@@ -61,11 +63,11 @@ During setup you can:
 - optionally create a production Turso database or connect to an existing one
 - choose a Turso group from a detected list or enter one manually
 - write production credentials into `.dev.vars.production`
-- create or select a named Wrangler profile for this project
+- create or select a named cf profile for this project
 - select a Cloudflare account reachable by that profile
 - pin the profile and account for future Cloudflare commands
 
-Setup intentionally does not create Cloudflare resources or API tokens. Resource requirements can be added to `wrangler.jsonc` as the application develops, then reviewed and applied separately.
+Setup intentionally does not create Cloudflare resources or API tokens. Resource requirements can be added to `cloudflare.config.ts` as the application develops, then reviewed and applied separately.
 
 Setup writes `.worktreeinclude` at the Git repository root so ignored local files can be copied into Codex, Claude Code, and compatible worktrees. It registers `.dev.vars`, `.dev.vars.production`, and `.cloudflare.json`. In a monorepo, entries include the app's repository-relative directory, while a standalone app uses root-relative entries. Existing patterns are preserved and repeated setup is idempotent.
 
@@ -84,30 +86,30 @@ TURSO_AUTH_TOKEN=
 
 ## Available Commands
 
-| Command                             | Description                                                 |
-| ----------------------------------- | ----------------------------------------------------------- |
-| `bun run setup`                     | Initialize and optionally configure Turso and Cloudflare    |
-| `bun run dev`                       | Start local Turso and the app through portless on port 1355 |
-| `bun run build`                     | Build for production                                        |
-| `bun run preview`                   | Start local Turso, build, and preview the production output |
-| `bun run test`                      | Run tests with Vitest                                       |
-| `bun run lint`                      | Run typecheck, lint, and format checks                      |
-| `bun run format`                    | Apply lint fixes and formatting                             |
-| `bun run cloudflare -- status`      | Check login, account, and resource readiness                |
-| `bun run cloudflare -- plan`        | Preview required resource creates and permissions           |
-| `bun run cloudflare -- apply --yes` | Create reviewed resources and update `wrangler.jsonc`       |
-| `bun run cloudflare -- …`           | Run Wrangler with the configured profile and account        |
-| `bun run doctor`                    | Scan React code for correctness and design issues           |
-| `bun run fallow`                    | Report dead code, duplication, and complexity               |
-| `bun run fallow:audit`              | Gate newly introduced structural issues                     |
-| `bun run quality`                   | Run lint, tests, React Doctor, and the full Fallow scan     |
-| `bun run db:generate`               | Generate Drizzle migrations from schema changes             |
-| `bun run db:migrate`                | Push schema changes to `.turso/dev.db`                      |
-| `bun run db:migrate:prod`           | Push schema changes using `.dev.vars.production`            |
-| `bun run db:studio`                 | Open Drizzle Studio for `.turso/dev.db`                     |
-| `bun run generate:module`           | Scaffold an Effect API contract, handler, service, and test |
-| `bun run deploy`                    | Build and deploy to Cloudflare Workers                      |
-| `bun run cf-typegen`                | Regenerate Wrangler environment types                       |
+| Command                             | Description                                                  |
+| ----------------------------------- | ------------------------------------------------------------ |
+| `bun run setup`                     | Initialize and optionally configure Turso and Cloudflare     |
+| `bun run dev`                       | Start local Turso and the app through portless on port 1355  |
+| `bun run build`                     | Build for production                                         |
+| `bun run preview`                   | Start local Turso, build, and preview the production output  |
+| `bun run test`                      | Run tests with Vitest                                        |
+| `bun run lint`                      | Run typecheck, lint, and format checks                       |
+| `bun run format`                    | Apply lint fixes and formatting                              |
+| `bun run cloudflare -- status`      | Check login, account, and resource readiness                 |
+| `bun run cloudflare -- plan`        | Preview required resource creates and permissions            |
+| `bun run cloudflare -- apply --yes` | Create resources and save IDs in `cloudflare.resources.json` |
+| `bun run cloudflare -- …`           | Run cf with the configured profile and account               |
+| `bun run doctor`                    | Scan React code for correctness and design issues            |
+| `bun run fallow`                    | Report dead code, duplication, and complexity                |
+| `bun run fallow:audit`              | Gate newly introduced structural issues                      |
+| `bun run quality`                   | Run lint, tests, React Doctor, and the full Fallow scan      |
+| `bun run db:generate`               | Generate Drizzle migrations from schema changes              |
+| `bun run db:migrate`                | Push schema changes to `.turso/dev.db`                       |
+| `bun run db:migrate:prod`           | Push schema changes using `.dev.vars.production`             |
+| `bun run db:studio`                 | Open Drizzle Studio for `.turso/dev.db`                      |
+| `bun run generate:module`           | Scaffold an Effect API contract, handler, service, and test  |
+| `bun run deploy`                    | Build and deploy to Cloudflare Workers                       |
+| `bun run cf-typegen`                | Generate `.cloudflare/types/index.d.ts`                      |
 
 ## Project Structure
 
@@ -130,7 +132,7 @@ shadow/
 ├── drizzle.config.ts
 ├── drizzle.production.config.ts
 ├── vitest.config.ts
-└── wrangler.jsonc
+└── cloudflare.config.ts
 ```
 
 ## API Architecture
@@ -143,18 +145,20 @@ See `server/modules/README.md` for module design and registration rules.
 
 ## Deployment
 
-Production deploys use `.dev.vars.production` via `dotenvx` and upload its values as Worker secrets. The setup flow writes the machine-local profile and account selection to `.cloudflare.json`, activates that named Wrangler profile for the project directory, and pins the same `account_id` in `wrangler.jsonc`.
+Production deploys use `.dev.vars.production` via `dotenvx` and upload its values as Worker secrets. Setup writes the machine-local profile and account selection to `.cloudflare.json`, activates that named cf profile for the project directory, and sets the same `accountId` in `cloudflare.config.ts`. cf has its own credential store, so an existing Wrangler login must be authenticated again with cf. Setup guides that sign-in when needed.
 
 ### Cloudflare resource flow
 
-Add resource bindings when they become necessary. KV, D1, and R2 bindings can omit their remote identifier while local development is in progress:
+Add bindings to `worker.env` inside `withCloudflareResourceIds()` in `cloudflare.config.ts`. The template declares its two Turso values with `bindings.secret()`; secret values stay in `.dev.vars` and `.dev.vars.production`. KV, D1, and R2 can omit their identifiers during local development:
 
-```jsonc
-{
-  "kv_namespaces": [{ "binding": "CACHE" }],
-  "d1_databases": [{ "binding": "DB", "database_name": "my-app-db" }],
-  "r2_buckets": [{ "binding": "ASSETS" }],
-}
+```ts
+env: {
+  TURSO_DATABASE_URL: bindings.secret(),
+  TURSO_AUTH_TOKEN: bindings.secret(),
+  CACHE: bindings.kv({}),
+  DB: bindings.d1({ name: 'my-app-db' }),
+  ASSETS: bindings.r2({}),
+},
 ```
 
 Then use the explicit lifecycle:
@@ -166,24 +170,32 @@ bun run cloudflare -- apply --yes
 bun run deploy
 ```
 
-`status` performs a read-only authentication check and reports unresolved resources. `plan` is local-only: it shows the pinned target, exact creates, and the write capabilities an eventual API token would need. `apply --yes` creates only the reviewed KV namespaces, D1 databases, and R2 buckets through Wrangler's named profile, then lets Wrangler write their identifiers back to `wrangler.jsonc`.
+`status` checks authentication and reports unresolved bindings. `plan` runs locally and shows the pinned account, mode, exact creates, and required write permissions. `apply --yes` uses that named cf profile to create KV namespaces, D1 databases, and R2 buckets. Each returned identifier is saved immediately in `cloudflare.resources.json`, scoped by account ID and Worker name. `withCloudflareResourceIds()` loads those identifiers into the typed configuration on future runs. Commit this identifier file with the configuration after applying; it contains resource identifiers, not credentials.
 
-`apply` never deletes resources and never rolls back completed creates. Removing or renaming a binding does not delete the old remote resource. Queue, Dispatch Namespace, Flagship, and other resource drafts that this flow cannot safely update are reported as blockers; create or adopt those explicitly and record their identifiers before deployment.
+`apply` never deletes resources or rolls back completed creates. Removing or renaming a binding preserves the previous remote resource. Unsupported drafts must be created or adopted explicitly and given identifiers in `cloudflare.config.ts`.
 
-Deployment refuses unresolved resources and disables Wrangler's automatic provisioning flags, so a normal deploy cannot silently create account resources. Resource creation and Worker deployment therefore remain separate approvals.
+The guarded deploy builds with Vite+, validates the actual `.cloudflare/output/v0` artifacts against the pinned account, Worker, and mode, checks unresolved bindings, and passes the validated output to `cf deploy --prebuilt`. It also checks named resources such as R2 buckets and Queues exist before deployment, since cf can otherwise auto-provision them. Deployment and resource creation remain separate operations. The wrapper supports this deploy flow; preview and version uploads need their own guarded workflow before use.
 
-```bash
-bun run deploy
-```
-
-All remote Wrangler commands should use the guarded wrapper so the selected profile is passed explicitly and the two account IDs must match:
+Use `--mode staging` instead of Wrangler's `--env staging`. Return a complete configuration for each mode, including a distinct Worker name when resources should be separate. The wrapper defaults to `production`:
 
 ```bash
-bun run cloudflare -- deployments list
-bun run cloudflare -- tail
+bun run cloudflare -- plan --mode staging
+bun run cloudflare -- apply --yes --mode staging
+bun run cloudflare -- deploy --mode staging --secrets-file .dev.vars.production
 ```
 
-`.cloudflare.json` contains no credentials and is ignored by Git because profile names are machine-local. OAuth credentials remain in Wrangler's own credential store. The wrapper rejects ambient `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_API_KEY`, and `CLOUDFLARE_EMAIL` values, including their legacy `CF_*` aliases, and prevents Wrangler-loaded env files from silently overriding the configured named profile.
+All remote cf commands should use the wrapper to pass the named profile explicitly and require matching account IDs:
+
+```bash
+bun run cloudflare -- workers deployments list my-app
+bun run cloudflare -- workers tail my-app
+```
+
+`.cloudflare.json` contains no credentials and is ignored by Git because profile names are machine-local. OAuth credentials remain in cf's own credential store. The wrapper rejects ambient `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_API_KEY`, and `CLOUDFLARE_EMAIL`, including legacy `CF_*` aliases, and prevents `.env` credentials from overriding the selected profile.
+
+Vite+ remains the dev, build, and preview runner. cf currently detects this framework and delegates to `bunx vite`, which cannot run the template's Vite+ core alias. `bun run build` uses the cf-compatible Vite plugin to produce Build Output, and the guarded deploy consumes it without a second build. Type generation uses `cf workers types`; `bun run lint` regenerates types before checking the project. `.cloudflare/` holds ignored generated output and types.
+
+See the official [Wrangler migration guide](https://developers.cloudflare.com/cf/wrangler/migrate/) and [programmatic configuration reference](https://developers.cloudflare.com/cf/projects/cloudflare-config/). cf and Vite plugin v2 are currently beta; this template pins the verified versions.
 
 Do not create a broad API token during initial setup. If CI or release automation is introduced later, create a separate account-scoped token at that point with only the resource write capabilities shown by `plan` plus Workers Scripts write for deployment, and keep it in the automation provider's secret store. The current local wrapper is intentionally named-profile-only; token-based automation should be added as a separate execution mode rather than placed in `.cloudflare.json` or `.dev.vars.production`.
 
@@ -195,4 +207,4 @@ Prepare `.dev.vars.production` before deploying or running `bun run db:migrate:p
 - `@libsql/client` is pinned to `0.17.4`, which uses native `fetch` in Cloudflare Workers
 - `src/` must not import `server/` runtime modules; use the shared contract and `HttpApiClient`
 - The only bridge exception is `src/routes/api/$.ts`, which forwards Web requests to the server handler
-- `worker-configuration.d.ts` and `src/routeTree.gen.ts` are generated files
+- `.cloudflare/types/index.d.ts` and `src/routeTree.gen.ts` are generated files

@@ -8,6 +8,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -27,288 +28,314 @@ afterEach(async () => {
 })
 
 describe('Cloudflare command wrapper', () => {
-  test('passes the pinned profile and account while disabling automatic provisioning', async () => {
+  test('deploys the validated build with the pinned profile and account', async () => {
     const directory = await createFixture()
-    const { exitCode, stderr } = await runCloudflareCommand(directory, [
+    const { exitCode, stderr } = await runCommand(directory, [
       'deploy',
       '--dry-run',
     ])
     const [invocation] = await readInvocations(directory)
 
-    expect(stderr).toBe('$ bun scripts/cloudflare.ts deploy --dry-run\n')
-    expect(exitCode).toBe(0)
+    expect(exitCode, stderr).toBe(0)
     expect(invocation).toEqual({
       args: [
         'deploy',
+        '--prebuilt',
         '--dry-run',
-        '--no-experimental-provision',
-        '--no-experimental-auto-create',
         '--profile',
         'client-profile',
+        '--mode',
+        'production',
       ],
       accountId: ACCOUNT_ID,
       apiToken: '',
+      runtime: 'node',
     })
+    expect(
+      await fileExists(
+        join(
+          directory,
+          '.cloudflare/output/v0/workers/default/worker.config.json',
+        ),
+      ),
+    ).toBe(true)
   })
 
-  test('stops when the local and Wrangler account IDs disagree', async () => {
+  test('stops when the local and programmatic account IDs disagree', async () => {
     const directory = await createFixture()
-    await writeWranglerConfig(directory, {
-      name: 'test-worker',
-      account_id: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-    })
-
-    const { exitCode, stderr } = await runCloudflareCommand(directory, [
+    await writeConfig(directory, {}, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+    const { exitCode, stderr } = await runCommand(directory, [
       'deploy',
       '--dry-run',
     ])
-
     expect(exitCode).toBe(1)
     expect(stderr).toContain(
-      'Cloudflare account mismatch between .cloudflare.json and wrangler.jsonc.',
+      'Cloudflare account mismatch between .cloudflare.json and cloudflare.config.ts.',
     )
+    expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
   })
 
-  test('rejects legacy credential environment variables', async () => {
+  test('rejects credentials and profile overrides before invoking cf', async () => {
     const directory = await createFixture()
-    const { exitCode, stderr } = await runCloudflareCommand(
-      directory,
-      ['plan'],
-      { CF_API_TOKEN: 'test-token' },
-    )
-
-    expect(exitCode).toBe(1)
-    expect(stderr).toContain(
+    const credential = await runCommand(directory, ['plan'], {
+      CF_API_TOKEN: 'test-token',
+    })
+    const profile = await runCommand(directory, ['deploy', '--profile=other'])
+    expect(credential.exitCode).toBe(1)
+    expect(credential.stderr).toContain(
       'CF_API_TOKEN overrides named Cloudflare profiles.',
     )
+    expect(profile.exitCode).toBe(1)
+    expect(profile.stderr).toContain('The Cloudflare profile is pinned')
+    expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
   })
 
-  test('plans KV, D1, and R2 creates without calling Wrangler', async () => {
+  test('plans KV, D1, and R2 creates locally', async () => {
     const directory = await createFixture()
-    await writeWranglerConfig(directory, unresolvedResources())
-
-    const { exitCode, stdout } = await runCloudflareCommand(directory, ['plan'])
-
-    expect(exitCode).toBe(0)
+    await writeConfig(directory, unresolvedResources())
+    const { exitCode, stdout, stderr } = await runCommand(directory, ['plan'])
+    expect(exitCode, stderr).toBe(0)
     expect(stdout).toContain(
-      'KV namespace "test-worker-cache" for kv_namespaces[0] (CACHE)',
+      'kv "test-worker-cache" for worker.env.CACHE (CACHE)',
     )
+    expect(stdout).toContain('d1 "application-db" for worker.env.DB (DB)')
     expect(stdout).toContain(
-      'D1 database "application-db" for d1_databases[0] (DB)',
-    )
-    expect(stdout).toContain(
-      'R2 bucket "test-worker-assets" for r2_buckets[0] (ASSETS)',
+      'r2 "test-worker-assets" for worker.env.ASSETS (ASSETS)',
     )
     expect(stdout).toContain('Permission: Workers KV Storage write')
     expect(stdout).toContain('- Deletes: none')
-    await expect(fileExists(join(directory, 'wrangler.log'))).resolves.toBe(
-      false,
-    )
+    expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
   })
 
   test('requires explicit confirmation before creating resources', async () => {
     const directory = await createFixture()
-    await writeWranglerConfig(directory, unresolvedResources())
-
-    const { exitCode, stderr } = await runCloudflareCommand(directory, [
-      'apply',
-    ])
-
+    await writeConfig(directory, unresolvedResources())
+    const { exitCode, stderr } = await runCommand(directory, ['apply'])
     expect(exitCode).toBe(1)
     expect(stderr).toContain('No remote changes were made.')
-    await expect(fileExists(join(directory, 'wrangler.log'))).resolves.toBe(
-      false,
-    )
+    expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
   })
 
-  test('creates planned resources and persists their identifiers', async () => {
+  test('creates planned resources, saves identifiers, and reuses them on the next plan', async () => {
     const directory = await createFixture()
-    await writeWranglerConfig(directory, unresolvedResources())
-
-    const { exitCode, stdout } = await runCloudflareCommand(directory, [
-      'apply',
-      '--yes',
-    ])
+    await writeConfig(directory, unresolvedResources())
+    const applied = await runCommand(directory, ['apply', '--yes'])
     const invocations = await readInvocations(directory)
-    const wranglerConfig = JSON.parse(
-      await readFile(join(directory, 'wrangler.jsonc'), 'utf-8'),
-    ) as {
-      kv_namespaces: Array<{ id?: string }>
-      d1_databases: Array<{ database_id?: string; database_name?: string }>
-      r2_buckets: Array<{ bucket_name?: string }>
-    }
-
-    expect(exitCode).toBe(0)
-    expect(invocations.map(({ args }) => args)).toEqual([
-      ['whoami', '--json'],
-      [
-        'kv',
-        'namespace',
-        'create',
-        'test-worker-cache',
-        '--binding',
-        'CACHE',
-        '--update-config',
-        '--use-remote',
-        '--no-experimental-provision',
-        '--no-experimental-auto-create',
-        '--profile',
-        'client-profile',
-      ],
-      [
-        'd1',
-        'create',
-        'application-db',
-        '--binding',
-        'DB',
-        '--update-config',
-        '--no-experimental-provision',
-        '--no-experimental-auto-create',
-        '--profile',
-        'client-profile',
-      ],
+    const identifiers = JSON.parse(
+      await readFile(join(directory, 'cloudflare.resources.json'), 'utf-8'),
+    )
+    expect(applied.exitCode, applied.stderr).toBe(0)
+    expect(invocations.map(({ args }) => args.slice(0, -4))).toEqual([
+      ['auth', 'whoami'],
+      ['kv', 'namespaces', 'create', '--title', 'test-worker-cache'],
+      ['d1', 'create', '--name', 'application-db'],
       [
         'r2',
-        'bucket',
+        'buckets',
         'create',
+        '--name',
         'test-worker-assets',
-        '--binding',
-        'ASSETS',
-        '--update-config',
-        '--jurisdiction',
+        '--cf-r2-jurisdiction',
         'eu',
-        '--no-experimental-provision',
-        '--no-experimental-auto-create',
-        '--profile',
-        'client-profile',
       ],
     ])
     expect(
       invocations.every(
-        ({ accountId, apiToken }) =>
-          accountId === ACCOUNT_ID && apiToken === '',
+        ({ accountId, apiToken, runtime, args }) =>
+          accountId === ACCOUNT_ID &&
+          apiToken === '' &&
+          runtime === 'node' &&
+          args.includes('client-profile'),
       ),
     ).toBe(true)
-    expect(wranglerConfig.kv_namespaces[0]?.id).toBe(
-      '11111111111111111111111111111111',
-    )
-    expect(wranglerConfig.d1_databases[0]).toMatchObject({
-      database_id: '22222222-2222-2222-2222-222222222222',
-      database_name: 'application-db',
+    expect(identifiers[ACCOUNT_ID]['test-worker']).toEqual({
+      CACHE: { type: 'kv', id: '11111111111111111111111111111111' },
+      DB: { type: 'd1', id: '22222222-2222-2222-2222-222222222222' },
+      ASSETS: { type: 'r2', id: 'test-worker-assets' },
     })
-    expect(wranglerConfig.r2_buckets[0]?.bucket_name).toBe('test-worker-assets')
-    expect(stdout).toContain(
-      'Cloudflare resources were created and wrangler.jsonc was updated.',
-    )
+    const nextPlan = await runCommand(directory, ['plan'])
+    expect(nextPlan.exitCode, nextPlan.stderr).toBe(0)
+    expect(nextPlan.stdout).not.toContain('- Create')
   })
 
-  test('reports authentication and resource readiness', async () => {
+  test('preserves completed resource identifiers if a later creation fails', async () => {
     const directory = await createFixture()
+    await writeConfig(directory, unresolvedResources())
+    const { exitCode, stderr } = await runCommand(
+      directory,
+      ['apply', '--yes'],
+      { SHADOW_CF_FAIL_D1: '1' },
+    )
+    const saved = JSON.parse(
+      await readFile(join(directory, 'cloudflare.resources.json'), 'utf-8'),
+    )
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('no rollback or delete was attempted')
+    expect(Object.keys(saved[ACCOUNT_ID]['test-worker'])).toEqual(['CACHE'])
+    expect(
+      (await readInvocations(directory)).some(
+        ({ args }) => args.includes('delete') || args.includes('r2'),
+      ),
+    ).toBe(false)
+  })
 
-    const { exitCode, stdout } = await runCloudflareCommand(directory, [
-      'status',
-    ])
-    const [invocation] = await readInvocations(directory)
-
-    expect(exitCode).toBe(0)
+  test('reports authentication and configured resource readiness', async () => {
+    const directory = await createFixture()
+    const { exitCode, stdout, stderr } = await runCommand(directory, ['status'])
+    expect(exitCode, stderr).toBe(0)
     expect(stdout).toContain('- Authentication: ready')
     expect(stdout).toContain('- Pending creates: 0')
-    expect(invocation?.args).toEqual(['whoami', '--json'])
-  })
-
-  test('reports expired authentication without attempting a mutation', async () => {
-    const directory = await createFixture()
-
-    const { exitCode, stdout, stderr } = await runCloudflareCommand(
-      directory,
-      ['status'],
-      { SHADOW_CLOUDFLARE_AUTH_FAIL: '1' },
-    )
-
-    expect(exitCode).toBe(1)
-    expect(stdout).toContain('- Authentication: unavailable')
-    expect(stderr).toContain('OAuth token expired')
-    expect((await readInvocations(directory)).map(({ args }) => args)).toEqual([
-      ['whoami', '--json'],
+    expect((await readInvocations(directory))[0]?.args).toEqual([
+      'auth',
+      'whoami',
+      '--profile',
+      'client-profile',
+      '--mode',
+      'production',
     ])
   })
+
+  test.each(['expired', 'wrong-account'])(
+    'rejects %s authentication even when cf exits successfully',
+    async (failure) => {
+      const directory = await createFixture()
+      await writeConfig(directory, unresolvedResources())
+      const { exitCode, stderr } = await runCommand(
+        directory,
+        ['apply', '--yes'],
+        { SHADOW_CF_AUTH_FAILURE: failure },
+      )
+      expect(exitCode).toBe(1)
+      expect(stderr).toContain(
+        failure === 'expired'
+          ? 'Authentication unavailable'
+          : 'cannot access the pinned account',
+      )
+      expect(await readInvocations(directory)).toHaveLength(1)
+    },
+  )
 
   test('blocks unsupported draft resources and deployment', async () => {
     const directory = await createFixture()
-    await writeWranglerConfig(directory, {
-      name: 'test-worker',
-      account_id: ACCOUNT_ID,
-      queues: {
-        producers: [{ binding: 'EVENTS' }],
-      },
-    })
-
-    const plan = await runCloudflareCommand(directory, ['plan'])
-    const deploy = await runCloudflareCommand(directory, [
-      'deploy',
-      '--dry-run',
-    ])
-
+    await writeConfig(directory, { EVENTS: { type: 'queue' } })
+    const plan = await runCommand(directory, ['plan'])
+    const deploy = await runCommand(directory, ['deploy', '--dry-run'])
     expect(plan.exitCode).toBe(1)
-    expect(plan.stdout).toContain('queues.producers[0]: Missing queue.')
+    expect(plan.stdout).toContain('worker.env.EVENTS: Missing name.')
     expect(deploy.exitCode).toBe(1)
     expect(deploy.stderr).toContain(
       'Deployment stopped because Cloudflare resources are unresolved.',
     )
-    await expect(fileExists(join(directory, 'wrangler.log'))).resolves.toBe(
-      false,
-    )
+    expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
   })
 
-  test('plans and guards a selected Wrangler environment', async () => {
+  test('evaluates the selected mode before planning and guarding deployment', async () => {
     const directory = await createFixture()
-    await writeWranglerConfig(directory, {
-      name: 'test-worker',
-      account_id: ACCOUNT_ID,
-      env: {
-        staging: {
-          name: 'test-worker-staging',
-          kv_namespaces: [{ binding: 'CACHE' }],
-        },
-      },
-    })
+    await writeConfig(
+      directory,
+      { CACHE: { type: 'kv' } },
+      ACCOUNT_ID,
+      'staging',
+    )
+    const plan = await runCommand(directory, ['plan', '--mode', 'staging'])
+    const deploy = await runCommand(directory, [
+      'deploy',
+      '-m',
+      'staging',
+      '--dry-run',
+    ])
+    expect(plan.exitCode, plan.stderr).toBe(0)
+    expect(plan.stdout).toContain('- Mode: staging')
+    expect(plan.stdout).toContain('kv "test-worker-staging-cache"')
+    expect(deploy.exitCode).toBe(1)
+    expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
+  })
 
-    const plan = await runCloudflareCommand(directory, [
+  test('rejects prebuilt output with a different account or unresolved bindings', async () => {
+    const directory = await createFixture()
+    const built = await runCommand(directory, ['deploy', '--dry-run'])
+    expect(built.exitCode, built.stderr).toBe(0)
+    const rootPath = join(directory, '.cloudflare/output/v0/config.json')
+    const root = JSON.parse(await readFile(rootPath, 'utf-8'))
+    await writeFile(
+      rootPath,
+      JSON.stringify({
+        ...root,
+        accountId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      }),
+    )
+    const wrongAccount = await runCommand(directory, [
+      'deploy',
+      '--prebuilt',
+      '--dry-run',
+    ])
+    expect(wrongAccount.exitCode).toBe(1)
+    expect(wrongAccount.stderr).toContain(
+      'Build Output account, Worker, or mode differs',
+    )
+    await writeFile(rootPath, JSON.stringify(root))
+    const workerPath = join(
+      directory,
+      '.cloudflare/output/v0/workers/default/worker.config.json',
+    )
+    const worker = JSON.parse(await readFile(workerPath, 'utf-8'))
+    await writeFile(
+      workerPath,
+      JSON.stringify({ ...worker, env: { CACHE: { type: 'kv' } } }),
+    )
+    const unresolved = await runCommand(directory, [
+      'deploy',
+      '--prebuilt',
+      '--dry-run',
+    ])
+    expect(unresolved.exitCode).toBe(1)
+    expect(unresolved.stderr).toContain('resources are unresolved')
+    expect(await readInvocations(directory)).toHaveLength(1)
+  })
+
+  test.each([
+    { label: 'normal deploy', options: [] },
+    { label: 'explicit false dry-run', options: ['--dry-run', 'false'] },
+  ])('checks existing R2 resources before $label', async ({ options }) => {
+    const directory = await createFixture()
+    await writeConfig(directory, {
+      ASSETS: { type: 'r2', name: 'existing-bucket' },
+    })
+    const { exitCode, stderr } = await runCommand(
+      directory,
+      ['deploy', ...options],
+      {
+        SHADOW_CF_MISSING_BUCKET: '1',
+      },
+    )
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain(
+      'Resource verification failed for worker.env.ASSETS',
+    )
+    expect(
+      (await readInvocations(directory)).map(({ args }) => args.slice(0, -4)),
+    ).toEqual([
+      ['auth', 'whoami'],
+      ['r2', 'buckets', 'get', 'existing-bucket'],
+    ])
+  })
+
+  test('rejects legacy automatic provisioning and environment flags', async () => {
+    const directory = await createFixture()
+    const provisioning = await runCommand(directory, [
+      'deploy',
+      '--x-provision',
+    ])
+    const environment = await runCommand(directory, [
       'plan',
       '--env',
       'staging',
     ])
-    const deploy = await runCloudflareCommand(directory, [
-      'deploy',
-      '--env',
-      'staging',
-      '--dry-run',
-    ])
-
-    expect(plan.exitCode).toBe(0)
-    expect(plan.stdout).toContain('- Environment: staging')
-    expect(plan.stdout).toContain('KV namespace "test-worker-staging-cache"')
-    expect(deploy.exitCode).toBe(1)
-    expect(deploy.stderr).toContain(
-      'Deployment stopped because Cloudflare resources are unresolved.',
-    )
-    await expect(fileExists(join(directory, 'wrangler.log'))).resolves.toBe(
-      false,
-    )
-  })
-
-  test('rejects flags that re-enable automatic provisioning', async () => {
-    const directory = await createFixture()
-
-    const { exitCode, stderr } = await runCloudflareCommand(directory, [
-      'deploy',
-      '--x-provision',
-    ])
-
-    expect(exitCode).toBe(1)
-    expect(stderr).toContain(
-      '--x-provision bypasses the reviewed resource plan',
-    )
+    expect(provisioning.exitCode).toBe(1)
+    expect(provisioning.stderr).toContain('bypasses the reviewed resource plan')
+    expect(environment.exitCode).toBe(1)
+    expect(environment.stderr).toContain('cf uses --mode')
+    expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
   })
 })
 
@@ -316,23 +343,20 @@ type Invocation = {
   args: string[]
   accountId?: string
   apiToken?: string
+  runtime: string
 }
 
-async function runCloudflareCommand(
+async function runCommand(
   directory: string,
   args: string[],
   environment: NodeJS.ProcessEnv = {},
-): Promise<{
-  exitCode: number | null
-  stdout: string
-  stderr: string
-}> {
+) {
   const child = spawn('bun', ['run', 'cloudflare', '--', ...args], {
     cwd: directory,
     env: {
-      ...withoutCloudflareCredentials(process.env),
+      ...withoutCredentials(process.env),
       ...environment,
-      SHADOW_CLOUDFLARE_TEST_LOG: join(directory, 'wrangler.log'),
+      SHADOW_CF_TEST_LOG: join(directory, 'cf.log'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -340,8 +364,7 @@ async function runCloudflareCommand(
   const stderr: Buffer[] = []
   child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk))
   child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
-
-  const [exitCode] = (await once(child, 'exit')) as [number | null]
+  const [exitCode] = await once(child, 'exit')
   return {
     exitCode,
     stdout: Buffer.concat(stdout).toString(),
@@ -352,112 +375,123 @@ async function runCloudflareCommand(
 async function createFixture(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'shadow-cloudflare-'))
   temporaryDirectories.push(directory)
-
   await mkdir(join(directory, 'scripts'), { recursive: true })
   for (const file of [
     'cloudflare.ts',
     'cloudflare-config.ts',
     'cloudflare-resources.ts',
+    'cloudflare-resource-ids.ts',
   ]) {
     await copyFile(
       join(ROOT, 'scripts', file),
       join(directory, 'scripts', file),
     )
   }
+  await mkdir(join(directory, 'node_modules/.bin'), { recursive: true })
+  for (const dependency of ['@cloudflare']) {
+    await symlink(
+      join(ROOT, 'node_modules', dependency),
+      join(directory, 'node_modules', dependency),
+      'dir',
+    )
+  }
+  await mkdir(join(directory, 'node_modules/cf'), { recursive: true })
+  await copyFile(
+    join(ROOT, 'node_modules/cf/package.json'),
+    join(directory, 'node_modules/cf/package.json'),
+  )
+  await symlink(
+    join(ROOT, 'node_modules/cf/dist'),
+    join(directory, 'node_modules/cf/dist'),
+    'dir',
+  )
   await writeFile(
     join(directory, '.cloudflare.json'),
-    `${JSON.stringify(
-      {
-        profile: 'client-profile',
-        accountId: ACCOUNT_ID,
-      },
-      null,
-      2,
-    )}\n`,
+    JSON.stringify({ profile: 'client-profile', accountId: ACCOUNT_ID }),
   )
   await writeFile(
     join(directory, 'package.json'),
-    `${JSON.stringify({ scripts: { cloudflare: 'bun scripts/cloudflare.ts' } })}\n`,
+    JSON.stringify({
+      type: 'module',
+      scripts: {
+        cloudflare: 'node scripts/cloudflare.ts',
+        build: 'node scripts/build-fixture.mjs',
+      },
+    }),
   )
-  await writeWranglerConfig(directory, {
-    name: 'test-worker',
-    account_id: ACCOUNT_ID,
-  })
-  await writeWranglerStub(directory)
-
+  await writeFile(
+    join(directory, 'scripts/build-fixture.mjs'),
+    `
+import { loadAndParseConfig } from '@cloudflare/config'
+import { getWorkerBundleDir, writeRootConfig, writeWorkerConfig } from '@cloudflare/build-output-utils'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+const root = process.cwd()
+const mode = process.argv[process.argv.indexOf('--mode') + 1]
+const { result } = await loadAndParseConfig(join(root, 'cloudflare.config.ts'), { mode, isPreview: false })
+if (!result.success) throw result.error
+await writeRootConfig(root, { accountId: result.data.accountId }, { mode, isPreview: false })
+await mkdir(getWorkerBundleDir(root), { recursive: true })
+await writeFile(join(getWorkerBundleDir(root), 'index.js'), 'export default { fetch() { return new Response("OK") } }')
+await writeWorkerConfig({ root, config: result.data.worker, manifest: { type: 'complete', mainModule: 'index.js', modules: { 'index.js': { type: 'esm' } } } })
+`,
+  )
+  await writeConfig(directory, {})
+  await writeCfStub(directory)
   return directory
 }
 
-async function writeWranglerConfig(
+async function writeConfig(
   directory: string,
-  configuration: Record<string, unknown>,
+  env: Record<string, unknown>,
+  accountId = ACCOUNT_ID,
+  selectedMode?: string,
 ): Promise<void> {
   await writeFile(
-    join(directory, 'wrangler.jsonc'),
-    `${JSON.stringify(configuration, null, 2)}\n`,
+    join(directory, 'cloudflare.config.ts'),
+    `
+import { defineConfig } from 'cf/config'
+import { withCloudflareResourceIds } from './scripts/cloudflare-resource-ids.ts'
+export default defineConfig(({ mode }) => ({
+  accountId: '${accountId}',
+  worker: withCloudflareResourceIds({
+    name: ${selectedMode ? `mode === '${selectedMode}' ? 'test-worker-${selectedMode}' : 'test-worker'` : "'test-worker'"},
+    compatibilityDate: '2025-09-02',
+    entrypoint: './index.ts',
+    env: ${selectedMode ? `mode === '${selectedMode}' ? ${JSON.stringify(env)} : {}` : JSON.stringify(env)},
+  }, '${accountId}'),
+}))
+`,
   )
 }
 
-async function writeWranglerStub(directory: string): Promise<void> {
-  const binaryPath = join(directory, 'node_modules/.bin/wrangler')
+async function writeCfStub(directory: string): Promise<void> {
+  const binaryPath = join(directory, 'node_modules/cf/bin/cf')
   await mkdir(dirname(binaryPath), { recursive: true })
   await writeFile(
     binaryPath,
-    `#!/usr/bin/env bun
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-
+    `#!/usr/bin/env node
+import { appendFileSync } from 'node:fs'
 const args = process.argv.slice(2)
-appendFileSync(
-  process.env.SHADOW_CLOUDFLARE_TEST_LOG,
-  JSON.stringify({
-    args,
-    accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
-    apiToken: process.env.CLOUDFLARE_API_TOKEN,
-  }) + '\\n',
-)
-
-if (args[0] === 'whoami' && args[1] === '--json') {
-  if (process.env.SHADOW_CLOUDFLARE_AUTH_FAIL) {
-    console.error('OAuth token expired')
-    process.exit(1)
-  }
-  console.log(JSON.stringify({
-    loggedIn: true,
-    accounts: [{ id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', name: 'Test Account' }],
-  }))
-  process.exit(0)
-}
-
-const configPath = join(process.cwd(), 'wrangler.jsonc')
-const config = JSON.parse(readFileSync(configPath, 'utf-8'))
-const bindingIndex = args.indexOf('--binding')
-const binding = args[bindingIndex + 1]
-
-if (args[0] === 'kv' && args[1] === 'namespace' && args[2] === 'create') {
-  const resource = config.kv_namespaces.find((item) => item.binding === binding)
-  resource.id = '11111111111111111111111111111111'
-}
-
-if (args[0] === 'd1' && args[1] === 'create') {
-  const resource = config.d1_databases.find((item) => item.binding === binding)
-  resource.database_name = args[2]
-  resource.database_id = '22222222-2222-2222-2222-222222222222'
-}
-
-if (args[0] === 'r2' && args[1] === 'bucket' && args[2] === 'create') {
-  const resource = config.r2_buckets.find((item) => item.binding === binding)
-  resource.bucket_name = args[3]
-}
-
-writeFileSync(configPath, JSON.stringify(config, null, 2) + '\\n')
+appendFileSync(process.env.SHADOW_CF_TEST_LOG, JSON.stringify({ args, accountId: process.env.CLOUDFLARE_ACCOUNT_ID, apiToken: process.env.CLOUDFLARE_API_TOKEN, runtime: process.versions.bun ? 'bun' : 'node' }) + '\\n')
+if (args[0] === 'auth' && args[1] === 'whoami') {
+  console.log(JSON.stringify({ authenticated: true, tokenValid: process.env.SHADOW_CF_AUTH_FAILURE !== 'expired', accounts: [{ id: process.env.SHADOW_CF_AUTH_FAILURE === 'wrong-account' ? 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' : '${ACCOUNT_ID}', name: 'Test Account' }] }))
+} else if (args[0] === 'kv') {
+  console.log(JSON.stringify({ id: '11111111111111111111111111111111' }))
+} else if (args[0] === 'd1') {
+  if (process.env.SHADOW_CF_FAIL_D1) { console.error('D1 permission denied'); process.exit(1) }
+  console.log(JSON.stringify({ uuid: '22222222-2222-2222-2222-222222222222' }))
+} else if (args[0] === 'r2') {
+  if (args[2] === 'get' && process.env.SHADOW_CF_MISSING_BUCKET) { console.error('Bucket does not exist'); process.exit(1) }
+  console.log(JSON.stringify({ name: args[2] === 'get' ? args[3] : args[args.indexOf('--name') + 1] }))
+} else console.log('{}')
 `,
   )
   await chmod(binaryPath, 0o755)
 }
 
 async function readInvocations(directory: string): Promise<Invocation[]> {
-  const source = await readFile(join(directory, 'wrangler.log'), 'utf-8')
+  const source = await readFile(join(directory, 'cf.log'), 'utf-8')
   return source
     .trim()
     .split('\n')
@@ -476,23 +510,22 @@ async function fileExists(path: string): Promise<boolean> {
 
 function unresolvedResources(): Record<string, unknown> {
   return {
-    name: 'test-worker',
-    account_id: ACCOUNT_ID,
-    kv_namespaces: [{ binding: 'CACHE', remote: true }],
-    d1_databases: [{ binding: 'DB', database_name: 'application-db' }],
-    r2_buckets: [{ binding: 'ASSETS', jurisdiction: 'eu' }],
+    CACHE: { type: 'kv', dev: { remote: true } },
+    DB: { type: 'd1', name: 'application-db' },
+    ASSETS: { type: 'r2', jurisdiction: 'eu' },
   }
 }
 
-function withoutCloudflareCredentials(
-  env: NodeJS.ProcessEnv,
-): NodeJS.ProcessEnv {
-  const nextEnv = { ...env }
-  delete nextEnv.CLOUDFLARE_API_TOKEN
-  delete nextEnv.CLOUDFLARE_API_KEY
-  delete nextEnv.CLOUDFLARE_EMAIL
-  delete nextEnv.CF_API_TOKEN
-  delete nextEnv.CF_API_KEY
-  delete nextEnv.CF_EMAIL
-  return nextEnv
+function withoutCredentials(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const result = { ...env }
+  for (const key of [
+    'CLOUDFLARE_API_TOKEN',
+    'CLOUDFLARE_API_KEY',
+    'CLOUDFLARE_EMAIL',
+    'CF_API_TOKEN',
+    'CF_API_KEY',
+    'CF_EMAIL',
+  ])
+    delete result[key]
+  return result
 }

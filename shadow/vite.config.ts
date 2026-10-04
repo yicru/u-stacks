@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite-plus'
+import { bindings } from 'cf/config'
 import { devtools } from '@tanstack/devtools-vite'
 
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
@@ -16,10 +17,10 @@ export default defineConfig({
       viteEnvironment: { name: 'ssr' },
       config: localTursoUrl
         ? (config) => ({
-            vars: {
-              ...config.vars,
-              TURSO_AUTH_TOKEN: '',
-              TURSO_DATABASE_URL: localTursoUrl,
+            env: {
+              ...config.env,
+              TURSO_AUTH_TOKEN: bindings.text(''),
+              TURSO_DATABASE_URL: bindings.text(localTursoUrl),
             },
           })
         : undefined,
@@ -36,6 +37,7 @@ export default defineConfig({
       'src/components/ui',
       'node_modules',
       '.wrangler',
+      '.cloudflare',
       'dist',
       '.tanstack',
     ],
@@ -52,6 +54,7 @@ export default defineConfig({
       'src/routeTree.gen.ts',
       'node_modules',
       '.wrangler',
+      '.cloudflare',
       'dist',
       '.tanstack',
     ],

@@ -55,6 +55,9 @@ describe('template setup', () => {
     expect(Buffer.concat(stderr).toString()).toBe('')
     expect(exitCode).toBe(0)
     expect(ctaConfig).toContain('"projectName": "consumer-app"')
+    expect(
+      await readFile(join(directory, 'cloudflare.config.ts'), 'utf-8'),
+    ).toContain("name: 'consumer-app'")
     expect(ctaConfig).toContain('"chosenAddOns": ["cloudflare"]')
     expect(worktreeInclude).toBe(
       '/.dev.vars\n/.cloudflare.json\n/.dev.vars.production\n',
@@ -300,8 +303,8 @@ describe('template setup', () => {
 
   test('pins the selected Cloudflare profile and account', async () => {
     const directory = await createSetupFixture()
-    const logPath = join(directory, 'wrangler.log')
-    await writeWranglerStub(directory)
+    const logPath = join(directory, 'cf.log')
+    await writeCfStub(directory)
 
     const child = spawn('bun', ['scripts/setup.ts', 'consumer-app'], {
       cwd: directory,
@@ -321,11 +324,11 @@ describe('template setup', () => {
     const cloudflareConfig = JSON.parse(
       await readFile(join(directory, '.cloudflare.json'), 'utf-8'),
     ) as { profile: string; accountId: string }
-    const wranglerConfig = await readFile(
-      join(directory, 'wrangler.jsonc'),
+    const workerConfig = await readFile(
+      join(directory, 'cloudflare.config.ts'),
       'utf-8',
     )
-    const wranglerLog = await readFile(logPath, 'utf-8')
+    const cfLog = await readFile(logPath, 'utf-8')
 
     expect(Buffer.concat(stderr).toString()).toBe('')
     expect(exitCode).toBe(0)
@@ -333,11 +336,11 @@ describe('template setup', () => {
       profile: 'client-profile',
       accountId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     })
-    expect(wranglerConfig).toContain(
-      '"account_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"',
+    expect(workerConfig).toContain(
+      "const accountId: string | undefined = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'",
     )
-    expect(wranglerLog).toContain('auth activate client-profile ')
-    expect(wranglerLog).toContain('whoami --json')
+    expect(cfLog).toContain('auth activate client-profile ')
+    expect(cfLog).toContain('auth whoami --profile client-profile')
     expect(Buffer.concat(stdout).toString()).toContain(
       'Cloudflare profile "client-profile" is pinned to Beta Account',
     )
@@ -368,7 +371,7 @@ async function createSetupFixture(targetDirectory?: string): Promise<string> {
     'scripts/setup.ts',
     'scripts/setup-worktree.mjs',
     'src/routes/__root.tsx',
-    'wrangler.jsonc',
+    'cloudflare.config.ts',
   ]
 
   for (const file of files) {
@@ -436,12 +439,12 @@ writeFileSync(packagePath, JSON.stringify({ version: '${TEST_EFFECT_VERSION}' })
   return binaryDirectory
 }
 
-async function writeWranglerStub(directory: string): Promise<void> {
-  const binaryPath = join(directory, 'node_modules/.bin/wrangler')
+async function writeCfStub(directory: string): Promise<void> {
+  const binaryPath = join(directory, 'node_modules/cf/bin/cf')
   await mkdir(dirname(binaryPath), { recursive: true })
   await writeFile(
     binaryPath,
-    `#!/usr/bin/env bun
+    `#!/usr/bin/env node
 import { appendFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
@@ -451,9 +454,10 @@ if (args[0] === 'auth' && args[1] === 'activate') {
   process.exit(0)
 }
 
-if (args[0] === 'whoami' && args[1] === '--json') {
+if (args[0] === 'auth' && args[1] === 'whoami') {
   console.log(JSON.stringify({
-    loggedIn: true,
+    authenticated: true,
+    tokenValid: true,
     accounts: [
       { id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', name: 'Alpha Account' },
       { id: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', name: 'Beta Account' },

@@ -1,4 +1,4 @@
 {
-  "profile": "your-wrangler-profile",
+  "profile": "your-cf-profile",
   "accountId": "your-cloudflare-account-id"
 }

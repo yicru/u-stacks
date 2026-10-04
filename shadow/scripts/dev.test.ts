@@ -349,7 +349,7 @@ fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`bun \${process.argv.slice(2
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`database \${process.env.TURSO_DATABASE_URL}\\n\`)
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`local \${process.env.SHADOW_LOCAL_TURSO_URL}\\n\`)
 if (process.env.SHADOW_DEV_TEST_CREATE_PREVIEW_ENV) {
-  const previewEnvPath = path.resolve('dist/server/.dev.vars')
+  const previewEnvPath = path.resolve('.cloudflare/output/v0/workers/default/.dev.vars')
   fs.mkdirSync(path.dirname(previewEnvPath), { recursive: true })
   fs.writeFileSync(previewEnvPath, "TURSO_DATABASE_URL='http://127.0.0.1:8080'\\nTURSO_AUTH_TOKEN=''\\nCUSTOM_VALUE='keep'\\n")
 }
@@ -363,7 +363,7 @@ const path = require('node:path')
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`vp \${process.argv.slice(2).join(' ')}\\n\`)
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`database \${process.env.TURSO_DATABASE_URL}\\n\`)
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`local \${process.env.SHADOW_LOCAL_TURSO_URL}\\n\`)
-const previewEnvPath = path.resolve('dist/server/.dev.vars')
+const previewEnvPath = path.resolve('.cloudflare/output/v0/workers/default/.dev.vars')
 if (fs.existsSync(previewEnvPath)) {
   fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`preview-env \${fs.readFileSync(previewEnvPath, 'utf-8')}\`)
 }

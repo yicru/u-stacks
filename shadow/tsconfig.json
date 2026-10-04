@@ -1,5 +1,5 @@
 {
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": ["**/*.ts", "**/*.tsx", ".cloudflare/types"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
@@ -10,7 +10,7 @@
       "@shared/*": ["./shared/*"]
     },
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["./worker-configuration.d.ts", "node", "vite/client"],
+    "types": ["node", "vite/client"],
 
     /* Bundler mode */
     "moduleResolution": "bundler",
