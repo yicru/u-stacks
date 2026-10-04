@@ -44,11 +44,7 @@ endpoint identifierは生成clientのmethod名になるため、`getResources`�
 
 ```typescript
 import { Schema } from 'effect'
-import {
-  HttpApiEndpoint,
-  HttpApiGroup,
-  HttpApiSchema,
-} from 'effect/unstable/httpapi'
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/http-api'
 import { InternalError } from './errors'
 
 export const Project = Schema.Struct({
@@ -81,7 +77,7 @@ handler groupの構築時にserviceを`yield*`し、各endpointへclose overす�
 
 ```typescript
 import { Effect } from 'effect'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AppApi } from '@shared/api'
 import { ProjectService } from './service'
 

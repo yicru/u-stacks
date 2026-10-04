@@ -95,7 +95,16 @@ function findWorktreeRoot() {
 function readGitTag() {
   const result = spawnSync(
     'git',
-    ['-C', effectSourcePath, 'describe', '--tags', '--exact-match', 'HEAD'],
+    [
+      '-C',
+      effectSourcePath,
+      'describe',
+      '--tags',
+      '--exact-match',
+      '--match',
+      effectTag,
+      'HEAD',
+    ],
     { encoding: 'utf-8' },
   )
 

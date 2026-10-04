@@ -33,7 +33,7 @@ u-stacks/
 ### Server Layer
 
 - tails and sonic use Hono routes and `hc<AppType>` clients
-- shadow uses Effect v4 `HttpApi` from `effect/unstable/httpapi`, Effect Schema, `HttpApiBuilder`, and `HttpApiClient`
+- shadow uses Effect v4 `HttpApi` from `effect/http-api`, Effect Schema, `HttpApiBuilder`, and `HttpApiClient`
 - shadow keeps the shared runtime contract in `shared/api`
 - shadow composes database and domain services with `Context.Service` and Layer
 - all stacks mount their public API below `/api`

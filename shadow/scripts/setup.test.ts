@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, test } from 'vitest'
 
 const ROOT = resolve(import.meta.dirname, '..')
-const TEST_EFFECT_VERSION = '4.0.0-beta.102'
+const TEST_EFFECT_VERSION = '4.0.0'
 const temporaryDirectories: string[] = []
 
 afterEach(async () => {
@@ -276,6 +276,8 @@ describe('template setup', () => {
         'describe',
         '--tags',
         '--exact-match',
+        '--match',
+        `effect@${TEST_EFFECT_VERSION}`,
         'HEAD',
       ],
       { encoding: 'utf-8' },
@@ -394,6 +396,7 @@ async function createEffectSourceRepository(): Promise<string> {
       'Initial Effect source',
     ],
     ['tag', `effect@${TEST_EFFECT_VERSION}`],
+    ['tag', `@effect/platform-bun@${TEST_EFFECT_VERSION}`],
   ]
 
   await writeFile(join(directory, 'README.md'), 'Effect source fixture\n')

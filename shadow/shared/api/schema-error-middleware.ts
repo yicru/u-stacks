@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { HttpApiError, HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiError, HttpApiMiddleware } from 'effect/http-api'
 import { ValidationError } from './errors'
 
 export class SchemaErrorMiddleware extends HttpApiMiddleware.Service<SchemaErrorMiddleware>()(

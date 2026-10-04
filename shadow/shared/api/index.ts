@@ -1,4 +1,4 @@
-import { HttpApi } from 'effect/unstable/httpapi'
+import { HttpApi } from 'effect/http-api'
 import { HealthCheckApi } from './health-check'
 import { SchemaErrorMiddleware } from './schema-error-middleware'
 import { TaskApi } from './task'

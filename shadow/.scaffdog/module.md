@@ -14,7 +14,7 @@ import {
   HttpApiEndpoint,
   HttpApiGroup,
   HttpApiSchema,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import { InternalError, NotFoundError } from './errors'
 import { PaginationMeta, PaginationQuery } from './pagination'
 
@@ -299,7 +299,7 @@ export const {{ inputs.name | pascal }}ServiceLive = {{ inputs.name | pascal }}S
 
 ```typescript
 import { Effect } from 'effect'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AppApi } from '@shared/api'
 import { {{ inputs.name | pascal }}Service } from './service'
 

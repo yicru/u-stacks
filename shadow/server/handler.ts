@@ -1,6 +1,6 @@
 import { Layer } from 'effect'
-import { HttpRouter, HttpServer } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpRouter, HttpServer } from 'effect/http'
+import { HttpApiBuilder } from 'effect/http-api'
 import { HealthCheckHandlersLive } from '@server/modules/health-check/handlers'
 import { TaskHandlersLive } from '@server/modules/task/handlers'
 import { TaskService } from '@server/modules/task/service'

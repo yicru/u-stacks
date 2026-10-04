@@ -58,15 +58,15 @@ shadow/
 ## CONVENTIONS
 
 - Package manager: bun only
-- Effect: `effect@beta` (v4)
+- Effect: stable v4
 - Path aliases: `@/*` → `src/*`, `@server/*` → `server/*`, `@shared/*` → `shared/*`, `#/*` → `src/*`
 - API source of truth: `shared/api`
 - Pagination contract: reuse `shared/api/pagination.ts` across resource modules
 - Endpoint identifiers: `getResources`, `getResource`, `createResource`, `updateResource`, `deleteResource`
 - Client request fields: `query` / `params` / `payload`
 - Request, response, and error validation: Effect Schema
-- HTTP API: `effect/unstable/httpapi` (`HttpApi`, `HttpApiBuilder`, `HttpApiClient`)
-- HTTP runtime: `effect/unstable/http` (`HttpRouter.toWebHandler`, `FetchHttpClient`, `HttpServer.layerServices`)
+- HTTP API: `effect/http-api` (`HttpApi`, `HttpApiBuilder`, `HttpApiClient`)
+- HTTP runtime: `effect/http` (`HttpRouter.toWebHandler`, `FetchHttpClient`, `HttpServer.layerServices`)
 - Browser client: `HttpApiClient.make` with `FetchHttpClient`
 - Service dependencies: `Context.Service`
 - Production and test implementations: Layer
@@ -80,6 +80,10 @@ shadow/
 - Icons: `@hugeicons/react` and `@hugeicons/core-free-icons`
 - Date display: `src/lib/date.ts` `formatDateTime()`
 - Local database: `turso dev` backed by `.turso/dev.db`, preferring `127.0.0.1:8080` and falling back to a free port
+
+## EFFECT DOCUMENTATION
+
+Before writing Effect code, read `node_modules/effect/AGENTS.md` completely and follow its links when required. For APIs it does not cover, inspect `node_modules/effect/src` and the installed package's exports and types. HTTP modules retain `@stability unstable` annotations; use the installed version's documentation.
 
 ## MODULE WORKFLOW
 
