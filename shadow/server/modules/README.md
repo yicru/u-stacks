@@ -177,7 +177,7 @@ await Effect.runPromise(
 ## Generator
 
 ```bash
-bun run generate:module
+pnpm run generate:module
 ```
 
 module名を入力すると次を生成する。

@@ -7,7 +7,10 @@ const ROOT = resolve(import.meta.dirname, '..')
 test('bounds nested patterns and ASTs while preserving normal brace expansion', () => {
   runNode(`
 const assert = require('node:assert/strict')
-const braces = require('braces')
+const { createRequire } = require('node:module')
+const scaffdogRequire = createRequire(require.resolve('./node_modules/scaffdog/package.json'))
+const micromatchRequire = createRequire(scaffdogRequire.resolve('micromatch'))
+const braces = micromatchRequire('braces')
 assert.deepEqual(braces.expand('src/{a,b}/{1..2}.ts'), ['src/a/1.ts', 'src/a/2.ts', 'src/b/1.ts', 'src/b/2.ts'])
 assert.equal(braces.compile('src/{a,b}.ts'), 'src/(a|b).ts')
 assert.equal(braces.stringify(braces.parse('src/{a,b}.ts')), 'src/{a,b}.ts')
@@ -33,7 +36,9 @@ test('rejects extra DigestAlgorithm elements and accepts valid RSA signatures', 
   runNode(`
 const assert = require('node:assert/strict')
 const { generateKeyPairSync } = require('node:crypto')
-const forge = require('node-forge')
+const { createRequire } = require('node:module')
+const dotenvxRequire = createRequire(require.resolve('@dotenvx/dotenvx'))
+const forge = dotenvxRequire('node-forge')
 const { privateKey: pem } = generateKeyPairSync('rsa', {
   modulusLength: 1024,
   publicExponent: 3,

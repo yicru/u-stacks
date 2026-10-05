@@ -36,7 +36,7 @@ try {
   }
 
   if (mode === 'preview') {
-    app = spawn('bun', ['run', 'build'], {
+    app = spawn('pnpm', ['run', 'build'], {
       cwd: ROOT,
       env: runtimeEnv,
       stdio: 'inherit',

@@ -29,14 +29,14 @@ afterEach(async () => {
 describe('template setup', () => {
   test('keeps the CTA config formatter-compatible after renaming', async () => {
     const directory = await createSetupFixture()
-    const child = spawn('bun', ['scripts/setup.ts', 'consumer-app'], {
+    const child = spawn(process.execPath, ['scripts/setup.ts'], {
       cwd: directory,
       env: withoutCloudflareCredentials(process.env),
       stdio: ['pipe', 'pipe', 'pipe'],
     })
     const stderr: Buffer[] = []
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
-    child.stdin.end('n\nn\n')
+    child.stdin.end('consumer-app\nn\nn\n')
 
     const [exitCode] = (await once(child, 'exit')) as [number | null]
     const ctaConfig = await readFile(join(directory, '.cta.json'), 'utf-8')
@@ -96,7 +96,7 @@ describe('template setup', () => {
           scripts: [
             {
               name: 'Start app',
-              command: 'bun run dev',
+              command: 'pnpm run dev',
               icon: 'play',
             },
             {
@@ -115,11 +115,15 @@ describe('template setup', () => {
     expect(gitInit.status).toBe(0)
 
     for (let run = 0; run < 2; run += 1) {
-      const child = spawn('bun', ['scripts/setup.ts', 'consumer-app'], {
-        cwd: directory,
-        env: withoutCloudflareCredentials(process.env),
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
+      const child = spawn(
+        process.execPath,
+        ['scripts/setup.ts', 'consumer-app'],
+        {
+          cwd: directory,
+          env: withoutCloudflareCredentials(process.env),
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      )
       child.stdin.end('n\nn\n')
 
       const [exitCode] = (await once(child, 'exit')) as [number | null]
@@ -147,7 +151,7 @@ describe('template setup', () => {
     expect(t3Project.defaultThreadEnvMode).toBe('worktree')
     expect(t3Project.scripts).toContainEqual({
       name: 'Start app',
-      command: 'bun run dev',
+      command: 'pnpm run dev',
       icon: 'play',
     })
     expect(
@@ -185,11 +189,15 @@ describe('template setup', () => {
 
     expect(gitInit.status).toBe(0)
 
-    const setup = spawn('bun', ['scripts/setup.ts', 'consumer-app'], {
-      cwd: directory,
-      env: withoutCloudflareCredentials(process.env),
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
+    const setup = spawn(
+      process.execPath,
+      ['scripts/setup.ts', 'consumer-app'],
+      {
+        cwd: directory,
+        env: withoutCloudflareCredentials(process.env),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
     setup.stdin.end('n\nn\n')
 
     const [setupExitCode] = (await once(setup, 'exit')) as [number | null]
@@ -223,7 +231,7 @@ describe('template setup', () => {
 
     const effectRepository = await createEffectSourceRepository()
     const commandLog = join(worktree, 'commands.log')
-    const stubBinaryDirectory = await writeBunInstallStub(
+    const stubBinaryDirectory = await writePnpmInstallStub(
       await createTemporaryDirectory(),
       commandLog,
     )
@@ -306,14 +314,18 @@ describe('template setup', () => {
     const logPath = join(directory, 'cf.log')
     await writeCfStub(directory)
 
-    const child = spawn('bun', ['scripts/setup.ts', 'consumer-app'], {
-      cwd: directory,
-      env: withoutCloudflareCredentials({
-        ...process.env,
-        SHADOW_SETUP_TEST_LOG: logPath,
-      }),
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
+    const child = spawn(
+      process.execPath,
+      ['scripts/setup.ts', 'consumer-app'],
+      {
+        cwd: directory,
+        env: withoutCloudflareCredentials({
+          ...process.env,
+          SHADOW_SETUP_TEST_LOG: logPath,
+        }),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
     child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk))
@@ -412,12 +424,12 @@ async function createEffectSourceRepository(): Promise<string> {
   return directory
 }
 
-async function writeBunInstallStub(
+async function writePnpmInstallStub(
   directory: string,
   logPath: string,
 ): Promise<string> {
   const binaryDirectory = join(directory, 'bin')
-  const binaryPath = join(binaryDirectory, 'bun')
+  const binaryPath = join(binaryDirectory, 'pnpm')
   await mkdir(binaryDirectory, { recursive: true })
   await writeFile(logPath, '')
   await writeFile(

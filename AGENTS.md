@@ -21,12 +21,12 @@ u-stacks/
 
 ## WHERE TO LOOK
 
-| Task | Location | Notes |
-|------|----------|-------|
-| Edge-first app (Next.js) | `tails/` | Cloudflare Pages + Turso + Better Auth |
-| Edge-first app (TanStack) | `shadow/` | Cloudflare Workers + Turso + bun |
-| Traditional fullstack | `sonic/` | Fly.io + PostgreSQL + Clerk + Mantine |
-| CI/CD | `.github/workflows/` | Only `deploy-sonic.yml` exists |
+| Task                      | Location             | Notes                                  |
+| ------------------------- | -------------------- | -------------------------------------- |
+| Edge-first app (Next.js)  | `tails/`             | Cloudflare Pages + Turso + Better Auth |
+| Edge-first app (TanStack) | `shadow/`            | Cloudflare Workers + Turso + pnpm      |
+| Traditional fullstack     | `sonic/`             | Fly.io + PostgreSQL + Clerk + Mantine  |
+| CI/CD                     | `.github/workflows/` | Only `deploy-sonic.yml` exists         |
 
 ## API PATTERNS
 
@@ -53,22 +53,22 @@ u-stacks/
 
 ## STACK COMPARISON
 
-| | tails | sonic | shadow |
-|---|---|---|---|
-| Framework | Next.js 15 | React Router v7 | TanStack Start |
-| API | Hono | Hono | Effect HTTP API |
-| Contract | Hono RPC | Hono RPC | Effect v4 Schema + HttpApi |
-| UI | shadcn/ui (Radix) | Mantine | shadcn/ui (Base UI) |
-| Auth | Better Auth | Clerk | None |
-| ORM | Drizzle (Turso) | Prisma (PostgreSQL) | Drizzle (Turso) |
-| Deploy | Cloudflare Pages | Fly.io | Cloudflare Workers |
-| Pkg manager | npm | npm | **bun** |
-| Lint | Biome 2.1.4 | Biome 1.9.4 | oxlint + oxfmt |
-| Path alias | `@/*` `@server/*` | `~/*` | `@/*` `@server/*` `@shared/*` `#/*` |
-| Test | None | None | Vitest |
-| Icon | lucide-react | N/A (Mantine) | @hugeicons/react |
-| Form | react-hook-form | mantine-form | field.tsx (RHF non-dependent) |
-| Env mgmt | dotenvx | .env | dotenvx |
+|             | tails             | sonic               | shadow                              |
+| ----------- | ----------------- | ------------------- | ----------------------------------- |
+| Framework   | Next.js 15        | React Router v7     | TanStack Start                      |
+| API         | Hono              | Hono                | Effect HTTP API                     |
+| Contract    | Hono RPC          | Hono RPC            | Effect v4 Schema + HttpApi          |
+| UI          | shadcn/ui (Radix) | Mantine             | shadcn/ui (Base UI)                 |
+| Auth        | Better Auth       | Clerk               | None                                |
+| ORM         | Drizzle (Turso)   | Prisma (PostgreSQL) | Drizzle (Turso)                     |
+| Deploy      | Cloudflare Pages  | Fly.io              | Cloudflare Workers                  |
+| Pkg manager | npm               | npm                 | **pnpm**                            |
+| Lint        | Biome 2.1.4       | Biome 1.9.4         | oxlint + oxfmt                      |
+| Path alias  | `@/*` `@server/*` | `~/*`               | `@/*` `@server/*` `@shared/*` `#/*` |
+| Test        | None              | None                | Vitest                              |
+| Icon        | lucide-react      | N/A (Mantine)       | @hugeicons/react                    |
+| Form        | react-hook-form   | mantine-form        | field.tsx (RHF non-dependent)       |
+| Env mgmt    | dotenvx           | .env                | dotenvx                             |
 
 ## CONVENTIONS
 
@@ -77,8 +77,8 @@ u-stacks/
 - Biome version mismatch: tails=2.1.4, sonic=1.9.4
 - No shared code between stacks — consumed independently via `degit`
 - ORM split: tails/shadow=Drizzle (Turso/libSQL), sonic=Prisma (PostgreSQL)
-- shadow uses `bun` exclusively — never `npm`
-- dotenvx used for environment management in tails (`npm run deploy:*`) and shadow (`bun run deploy`)
+- shadow uses the pnpm version pinned in its `packageManager` field
+- dotenvx used for environment management in tails (`npm run deploy:*`) and shadow (`pnpm run deploy`)
 - Icon library split: tails=lucide-react, sonic=Mantine built-in, shadow=@hugeicons/react
 
 ## ANTI-PATTERNS
@@ -104,13 +104,13 @@ npm run lint       # Biome check
 npm run format     # Biome fix
 npm run typecheck  # tsc --noEmit
 
-# shadow (bun)
-bun run dev        # Dev server
-bun run build      # Production build
-bun run lint       # typecheck + oxlint + oxfmt
-bun run format     # oxlint --fix + oxfmt
-bun run test       # Vitest
-bun run generate:module  # scaffdog module CRUD generation
+# shadow (pnpm)
+pnpm run dev        # Dev server
+pnpm run build      # Production build
+pnpm run lint       # typecheck + oxlint + oxfmt
+pnpm run format     # oxlint --fix + oxfmt
+pnpm run test       # Vitest
+pnpm run generate:module  # scaffdog module CRUD generation
 ```
 
 ## NOTES
@@ -118,7 +118,7 @@ bun run generate:module  # scaffdog module CRUD generation
 - Stacks are NOT a monorepo workspace — no root package.json
 - Only Sonic has GitHub Actions CI (`deploy-sonic.yml` → Fly.io)
 - Tails deploys via OpenNext to Cloudflare Pages (`npm run deploy:production`)
-- Shadow deploys via the cf CLI to Cloudflare Workers (`bun run deploy`)
+- Shadow deploys via the cf CLI to Cloudflare Workers (`pnpm run deploy`)
 - shadow has an Effect module pattern: shared contract plus handler, service, and test Layers
-- Shadow has `scripts/setup.ts` for template initialization (`bun run setup` replaces app name in package.json, cloudflare.config.ts, .cta.json)
+- Shadow has `scripts/setup.ts` for template initialization (`pnpm run setup` replaces app name in package.json, cloudflare.config.ts, .cta.json)
 - Shadow's shadcn/ui (Base UI) includes custom components not in standard shadcn: combobox, input-group, button-group, empty, field, item, kbd, native-select, spinner

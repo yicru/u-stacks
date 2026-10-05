@@ -46,9 +46,7 @@ async function main(): Promise<number> {
 
 function assertCommandEnvironment(): void {
   if (!args.length)
-    throw new Error(
-      'Usage: bun run cloudflare -- <status|plan|apply|cf command>',
-    )
+    throw new Error('Usage: pnpm run cloudflare <status|plan|apply|cf command>')
   assertPinnedCredentials()
   const unsupportedOptions = [
     {
@@ -90,7 +88,7 @@ async function readWorker(
     throw new Error(`Invalid cloudflare.config.ts: ${result.error.message}`)
   if (result.data.accountId !== configuration.accountId) {
     throw new Error(
-      'Cloudflare account mismatch between .cloudflare.json and cloudflare.config.ts. Run `bun run setup` again.',
+      'Cloudflare account mismatch between .cloudflare.json and cloudflare.config.ts. Run `pnpm run setup` again.',
     )
   }
   if (!result.data.worker)
@@ -136,7 +134,7 @@ async function deploy(
 }
 
 function build(mode: string): void {
-  const result = spawnSync('bun', ['run', 'build', '--mode', mode], {
+  const result = spawnSync('pnpm', ['run', 'build', '--mode', mode], {
     cwd: ROOT,
     stdio: 'inherit',
   })
@@ -182,7 +180,7 @@ function assertGuardedDeploymentCommand(): void {
     args.slice(0, 2).join(' ') === 'previews deploy'
   ) {
     throw new Error(
-      'Use `bun run cloudflare -- deploy` to validate resource readiness before deploying a build.',
+      'Use `pnpm run cloudflare deploy` to validate resource readiness before deploying a build.',
     )
   }
 }
@@ -364,10 +362,10 @@ function readConfiguration(): CloudflareConfiguration {
     if (configuration) return configuration
   } catch {
     throw new Error(
-      'Cloudflare deployment is not configured. Run `bun run setup`.',
+      'Cloudflare deployment is not configured. Run `pnpm run setup`.',
     )
   }
-  throw new Error('Invalid .cloudflare.json. Run `bun run setup`.')
+  throw new Error('Invalid .cloudflare.json. Run `pnpm run setup`.')
 }
 
 function readMode(values: string[]): string {
@@ -500,7 +498,7 @@ function isReady(plan: CloudflareResourcePlan): boolean {
 function assertReady(plan: CloudflareResourcePlan): void {
   if (!isReady(plan))
     throw new Error(
-      'Deployment stopped because Cloudflare resources are unresolved. Run `bun run cloudflare -- plan`, then `bun run cloudflare -- apply --yes`.',
+      'Deployment stopped because Cloudflare resources are unresolved. Run `pnpm run cloudflare plan`, then `pnpm run cloudflare apply --yes`.',
     )
 }
 
@@ -510,7 +508,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function findCfCommand(): string {
   const command = resolveCloudflareCommand(ROOT)
-  if (!command) throw new Error('cf was not found. Run `bun install`.')
+  if (!command) throw new Error('cf was not found. Run `pnpm install`.')
   return command
 }
 

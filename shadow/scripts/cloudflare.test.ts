@@ -443,7 +443,7 @@ async function runCommand(
   args: string[],
   environment: NodeJS.ProcessEnv = {},
 ) {
-  const child = spawn('bun', ['run', 'cloudflare', '--', ...args], {
+  const child = spawn('pnpm', ['run', 'cloudflare', ...args], {
     cwd: directory,
     env: {
       ...withoutCredentials(process.env),

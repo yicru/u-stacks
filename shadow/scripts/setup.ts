@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { basename, join, relative, resolve } from 'node:path'
 import {
@@ -10,7 +10,7 @@ import {
   suppressCloudflareCredentialEnvironmentVariables,
   type CloudflareAccount,
   type CloudflareConfiguration as StoredCloudflareConfiguration,
-} from './cloudflare-config'
+} from './cloudflare-config.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const PACKAGE_JSON_PATH = join(ROOT, 'package.json')
@@ -99,7 +99,7 @@ if (cloudflareConfiguration) {
     `✨ Cloudflare profile "${profile}" is pinned to ${account.name} (${account.id}).`,
   )
   console.log(
-    'ℹ️ Cloudflare resources and API tokens were not created. Add bindings during development, then run `bun run cloudflare -- plan`.',
+    'ℹ️ Cloudflare resources and API tokens were not created. Add bindings during development, then run `pnpm run cloudflare plan`.',
   )
 } else {
   console.log(
@@ -592,7 +592,7 @@ function prepareCfCommand(): string | null {
   const cfCommand = resolveCfCommand()
   if (!cfCommand) {
     console.error(
-      'cf was not found. Run `bun install`, then run `bun run setup` again.',
+      'cf was not found. Run `pnpm install`, then run `pnpm run setup` again.',
     )
     return null
   }
@@ -999,7 +999,7 @@ function ensureSetupScript(): void {
     readFileSync(PACKAGE_JSON_PATH, 'utf-8'),
   ) as PackageJson
   packageJson.scripts ??= {}
-  packageJson.scripts.setup = 'bun scripts/setup.ts'
+  packageJson.scripts.setup = 'node scripts/setup.ts'
   writeJson(PACKAGE_JSON_PATH, packageJson)
 }
 
@@ -1062,7 +1062,14 @@ function toKebabCase(value: string | null | undefined): string | undefined {
 }
 
 function ask(question: string): string | null {
-  return prompt(question)?.trim() ?? null
+  process.stdout.write(`${question} `)
+  const bytes: number[] = []
+  const byte = Buffer.alloc(1)
+  while (readSync(process.stdin.fd, byte, 0, 1, null) > 0) {
+    if (byte[0] === 10) break
+    bytes.push(byte[0])
+  }
+  return bytes.length ? Buffer.from(bytes).toString('utf-8').trim() : null
 }
 
 function askRequired(question: string, fallback: string): string {

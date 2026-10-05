@@ -45,19 +45,19 @@ shadow/
 
 ## WHERE TO LOOK
 
-| Task                | Location                               | Notes                                 |
-| ------------------- | -------------------------------------- | ------------------------------------- |
-| Add page            | `src/routes/`                          | TanStack Router file-based routing    |
-| Define API contract | `shared/api/`                          | Effect Schema and HttpApi groups      |
-| Implement endpoint  | `server/modules/`                      | Handler and service Layers            |
-| Compose runtime     | `server/handler.ts`, `server/index.ts` | Web handler and production Layers     |
-| Add UI component    | `src/components/ui/`                   | `bunx --bun shadcn@latest add <name>` |
-| DB schema           | `server/db/schema.ts`                  | Drizzle SQLite dialect                |
-| Module rules        | `server/modules/README.md`             | Registration and testing workflow     |
+| Task                | Location                               | Notes                              |
+| ------------------- | -------------------------------------- | ---------------------------------- |
+| Add page            | `src/routes/`                          | TanStack Router file-based routing |
+| Define API contract | `shared/api/`                          | Effect Schema and HttpApi groups   |
+| Implement endpoint  | `server/modules/`                      | Handler and service Layers         |
+| Compose runtime     | `server/handler.ts`, `server/index.ts` | Web handler and production Layers  |
+| Add UI component    | `src/components/ui/`                   | `pnpm exec shadcn add <name>`      |
+| DB schema           | `server/db/schema.ts`                  | Drizzle SQLite dialect             |
+| Module rules        | `server/modules/README.md`             | Registration and testing workflow  |
 
 ## CONVENTIONS
 
-- Package manager: bun only
+- Package manager: pnpm, pinned through `packageManager`
 - Effect: stable v4
 - Path aliases: `@/*` → `src/*`, `@server/*` → `server/*`, `@shared/*` → `shared/*`, `#/*` → `src/*`
 - API source of truth: `shared/api`
@@ -85,20 +85,20 @@ shadow/
 
 ## EFFECT DOCUMENTATION
 
-For Effect implementation, review, setup, or upgrades, read `.agents/skills/effect-ts/SKILL.md`. This project skill adapts the official Effect skill for Bun and stable v4 and is included in standalone template checkouts.
+For Effect implementation, review, setup, or upgrades, read `.agents/skills/effect-ts/SKILL.md`. This project skill adapts the official Effect skill for pnpm and stable v4 and is included in standalone template checkouts.
 
 Before writing Effect code, read `node_modules/effect/AGENTS.md` completely and follow its links when required. For APIs it does not cover, inspect `node_modules/effect/src` and the installed package's exports and types. HTTP modules retain `@stability unstable` annotations; use the installed version's documentation.
 
 ## SHADCN DOCUMENTATION
 
-Before working on shadcn UI, read `.agents/skills/shadcn/SKILL.md` and the relevant linked rules. This project skill is stored inside the template so a standalone `degit` checkout keeps its instructions and references. Run the CLI with `bunx --bun shadcn@latest` from the application directory; this template uses Base UI and Hugeicons.
+Before working on shadcn UI, read `.agents/skills/shadcn/SKILL.md` and the relevant linked rules. This project skill is stored inside the template so a standalone `degit` checkout keeps its instructions and references. Run the CLI with `pnpm exec shadcn` from the application directory; this template uses Base UI and Hugeicons.
 
 `@shadcn/lint` is registered in `vite.config.ts` through `lint.jsPlugins`. Its design-system rules are not enabled; configure `lint.rules` explicitly when adopting a rule policy. Preserve the existing component-source ignores.
 
 ## MODULE WORKFLOW
 
 ```bash
-bun run generate:module
+pnpm run generate:module
 ```
 
 The generator creates:
@@ -128,19 +128,19 @@ Browser code must not import runtime values from `server/`. It imports `AppApi` 
 
 `DatabaseLive` reads `env` from `cloudflare:workers` and owns the libSQL client lifecycle. Do not create a separate client inside modules.
 
-Local development uses the HTTP endpoint started by `bun run dev`; Workers must not receive a `file:` URL. Drizzle migration and Studio commands access `.turso/dev.db` directly, while remote credentials belong only in `.dev.vars.production`.
+Local development uses the HTTP endpoint started by `pnpm run dev`; Workers must not receive a `file:` URL. Drizzle migration and Studio commands access `.turso/dev.db` directly, while remote credentials belong only in `.dev.vars.production`.
 
-Use Bun 1.4.2 or later and Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`, matching the Vite+ and jsdom requirements. Bun remains the package manager; cf loads configuration with Node.js. `cloudflare.config.ts` is the typed Worker configuration, with secrets declared through `bindings.secret()`. `.cloudflare/types/index.d.ts` is generated by `bun run cf-typegen` and included explicitly in TypeScript.
+Use pnpm 12.9.1 and Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`, matching the Vite+ and jsdom requirements. Package management uses pnpm; helper scripts and cf use Node.js with native TypeScript support. `cloudflare.config.ts` is the typed Worker configuration, with secrets declared through `bindings.secret()`. `.cloudflare/types/index.d.ts` is generated by `pnpm run cf-typegen` and included explicitly in TypeScript.
 
 The compatibility date `2026-09-30` matches the pinned Vite plugin's workerd runtime. It enables Node.js compatibility by default. Keep logs enabled and traces sampled at 1%; review compatibility changes and run the local Worker when advancing the Cloudflare toolchain.
 
-Named cf profile and account selection belong in the ignored `.cloudflare.json`; setup sets the same `accountId` in `cloudflare.config.ts`. cf requires its own login and does not reuse Wrangler credentials. Run remote operations through `bun run cloudflare -- <command>` so `--profile` and `CLOUDFLARE_ACCOUNT_ID` are applied together. Do not use direct remote cf commands or ambient credential variables.
+Named cf profile and account selection belong in the ignored `.cloudflare.json`; setup sets the same `accountId` in `cloudflare.config.ts`. cf requires its own login and does not reuse Wrangler credentials. Run remote operations through `pnpm run cloudflare <command>` so `--profile` and `CLOUDFLARE_ACCOUNT_ID` are applied together. Do not use direct remote cf commands or ambient credential variables.
 
 Setup stores identity only. Add bindings inside `withCloudflareResourceIds()`, then use `status`, `plan`, and `apply --yes`. Managed apply creates KV, D1, and R2 only; returned IDs are saved in `cloudflare.resources.json` by account and Worker name. Commit the identifier file after applying. It never deletes or rolls back resources.
 
 Use `--mode`, not Wrangler's `--env`. The wrapper defaults to `production`. Guarded deployment validates the source configuration and actual Build Output, including account, Worker name, mode, and unresolved bindings, and verifies named resources that cf might otherwise provision. Keep deployment behind the wrapper; preview and version uploads require equivalent guards before enabling.
 
-Keep `vp` for dev/build/preview: cf's framework detection delegates to `bunx vite`, which cannot execute the Vite+ core alias. The cf-compatible Vite plugin emits `.cloudflare/output/v0`; the wrapper builds once and invokes `cf deploy --prebuilt`. Keep cf, Vite plugin v2, and their config/build-output helper versions pinned together during beta.
+Keep `vp` for dev/build/preview: cf's framework detection invokes the `vite` binary, which is absent from the Vite+ core alias. The cf-compatible Vite plugin emits `.cloudflare/output/v0`; the wrapper builds once and invokes `cf deploy --prebuilt`. Keep cf, Vite plugin v2, and their config/build-output helper versions pinned together during beta.
 
 ### Dependency and quality tools
 
@@ -150,7 +150,7 @@ Fallow entry points include Cloudflare configuration and T3 worktree helpers tha
 
 The Fallow dependency exclusions cover component-library imports in the ignored UI sources, including `cn` and `@shadcn/react`. `@shadcn/lint` is loaded by its package name in `lint.jsPlugins`, rather than a static import. Vendored skill files are excluded from source-quality checks, formatting, and Tailwind class scanning.
 
-The README documents local Bun patches for the braces and node-forge advisories. Keep `patchedDependencies`, the patch files, and `bun.lock` aligned; verify package changes with `scripts/dependency-security.test.ts`. `bun audit` checks published version metadata and still reports these patched versions. Keep the findings visible and replace patches with verified upstream fixes when available.
+The README documents local pnpm patches for the braces and node-forge advisories. Keep `patchedDependencies`, the patch files, and `pnpm-lock.yaml` aligned; verify package changes with `scripts/dependency-security.test.ts`. `pnpm audit` checks published version metadata and still reports these patched versions. Keep the findings visible and replace patches with verified upstream fixes when available.
 
 ### SSR self-reference
 
@@ -163,27 +163,27 @@ Do not edit `.cloudflare/types/index.d.ts` or `src/routeTree.gen.ts` manually.
 ## COMMANDS
 
 ```bash
-bun run setup
-bun run dev
-bun run build
-bun run lint
-bun run format
-bun run doctor
-bun run fallow
-bun run fallow:audit
-bun run quality
-bun run test
-bun run generate:module
-bun run db:generate
-bun run db:migrate
-bun run db:migrate:prod
-bun run db:studio
-bun run cloudflare -- status
-bun run cloudflare -- plan
-bun run cloudflare -- apply --yes
-bun run cloudflare -- <command>
-bun run deploy
-bun run cf-typegen
+pnpm run setup
+pnpm run dev
+pnpm run build
+pnpm run lint
+pnpm run format
+pnpm run doctor
+pnpm run fallow
+pnpm run fallow:audit
+pnpm run quality
+pnpm run test
+pnpm run generate:module
+pnpm run db:generate
+pnpm run db:migrate
+pnpm run db:migrate:prod
+pnpm run db:studio
+pnpm run cloudflare status
+pnpm run cloudflare plan
+pnpm run cloudflare apply --yes
+pnpm run cloudflare <command>
+pnpm run deploy
+pnpm run cf-typegen
 ```
 
 ## ANTI-PATTERNS
