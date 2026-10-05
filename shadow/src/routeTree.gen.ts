@@ -10,11 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ReferenceRouteImport } from './routes/reference'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
+import { Route as ApiReferenceSplatRouteImport } from './routes/api/reference/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReferenceRoute = ReferenceRouteImport.update({
+  id: '/reference',
+  path: '/reference',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
@@ -22,31 +29,44 @@ const ApiSplatRoute = ApiSplatRouteImport.update({
   path: '/api/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiReferenceSplatRoute = ApiReferenceSplatRouteImport.update({
+  id: '/api/reference/$',
+  path: '/api/reference/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/reference': typeof ReferenceRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/reference/$': typeof ApiReferenceSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/reference': typeof ReferenceRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/reference/$': typeof ApiReferenceSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/reference': typeof ReferenceRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/reference/$': typeof ApiReferenceSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/$'
+  fullPaths: '/' | '/reference' | '/api/$' | '/api/reference/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/$'
-  id: '__root__' | '/' | '/api/$'
+  to: '/' | '/reference' | '/api/$' | '/api/reference/$'
+  id: '__root__' | '/' | '/reference' | '/api/$' | '/api/reference/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ReferenceRoute: typeof ReferenceRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  ApiReferenceSplatRoute: typeof ApiReferenceSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +78,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reference': {
+      id: '/reference'
+      path: '/reference'
+      fullPath: '/reference'
+      preLoaderRoute: typeof ReferenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/$': {
       id: '/api/$'
       path: '/api/$'
@@ -65,12 +92,21 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/reference/$': {
+      id: '/api/reference/$'
+      path: '/api/reference/$'
+      fullPath: '/api/reference/$'
+      preLoaderRoute: typeof ApiReferenceSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ReferenceRoute: ReferenceRoute,
   ApiSplatRoute: ApiSplatRoute,
+  ApiReferenceSplatRoute: ApiReferenceSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

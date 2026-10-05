@@ -7,15 +7,16 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vite-plus/test'
 
 const ROOT = resolve(import.meta.dirname, '..')
-const TEST_EFFECT_VERSION = '4.0.0-beta.102'
+const TEST_EFFECT_VERSION = '4.0.0'
 const temporaryDirectories: string[] = []
 
 afterEach(async () => {
@@ -27,16 +28,99 @@ afterEach(async () => {
 })
 
 describe('template setup', () => {
+  test('creates a new production database in Tokyo by default', async () => {
+    const directory = await createSetupFixture()
+    const binaryDirectory = join(directory, 'bin')
+    const commandLog = join(directory, 'turso.log')
+    await mkdir(binaryDirectory)
+    await writeFile(
+      join(binaryDirectory, 'turso'),
+      `#!/usr/bin/env node
+import { appendFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+appendFileSync(process.env.SHADOW_SETUP_TEST_LOG, args.join(' ') + '\\n')
+if (args[0] === 'db' && args[1] === 'show') console.log('libsql://production.turso.io')
+if (args[0] === 'db' && args[1] === 'tokens') console.log('fixture-token')
+if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
+`,
+    )
+    await chmod(join(binaryDirectory, 'turso'), 0o755)
+    const child = spawn(
+      process.execPath,
+      ['scripts/setup.ts', 'consumer-app'],
+      {
+        cwd: directory,
+        env: withoutCloudflareCredentials({
+          ...process.env,
+          PATH: `${binaryDirectory}${delimiter}${process.env.PATH ?? ''}`,
+          SHADOW_SETUP_TEST_LOG: commandLog,
+        }),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
+    const stderr: Buffer[] = []
+    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
+    child.stdin.end('y\ny\nconsumer-app\n\n\nn\n')
+
+    const [exitCode] = (await once(child, 'exit')) as [number | null]
+
+    expect(Buffer.concat(stderr).toString()).toBe('')
+    expect(exitCode).toBe(0)
+    expect(await readFile(commandLog, 'utf-8')).toContain(
+      'db create consumer-app --location aws-ap-northeast-1 --wait',
+    )
+  })
+
+  test('pins the manually selected production database without storing its token in the target', async () => {
+    const directory = await createSetupFixture()
+    const binaryDirectory = join(directory, 'bin')
+    await mkdir(binaryDirectory)
+    await writeFile(join(binaryDirectory, 'turso'), '#!/bin/sh\nexit 1\n')
+    await chmod(join(binaryDirectory, 'turso'), 0o755)
+    const child = spawn(
+      process.execPath,
+      ['scripts/setup.ts', 'consumer-app'],
+      {
+        cwd: directory,
+        env: withoutCloudflareCredentials({
+          ...process.env,
+          PATH: `${binaryDirectory}${delimiter}${process.env.PATH ?? ''}`,
+        }),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
+    const stderr: Buffer[] = []
+    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
+    child.stdin.end('y\ny\nlibsql://production.turso.io\nfixture-token\nn\n')
+
+    const [exitCode] = (await once(child, 'exit')) as [number | null]
+    expect(Buffer.concat(stderr).toString()).toBe('')
+    expect(exitCode).toBe(0)
+    expect(
+      JSON.parse(
+        await readFile(join(directory, 'turso.production.json'), 'utf-8'),
+      ),
+    ).toEqual({ hostname: 'production.turso.io' })
+    const credentials = await readFile(
+      join(directory, '.dev.vars.production'),
+      'utf-8',
+    )
+    expect(credentials).toContain(
+      'TURSO_DATABASE_URL=libsql://production.turso.io',
+    )
+    expect(credentials).toContain('TURSO_AUTH_TOKEN=fixture-token')
+  })
+
   test('keeps the CTA config formatter-compatible after renaming', async () => {
     const directory = await createSetupFixture()
-    const child = spawn('bun', ['scripts/setup.ts', 'consumer-app'], {
+    const child = spawn(process.execPath, ['scripts/setup.ts'], {
       cwd: directory,
       env: withoutCloudflareCredentials(process.env),
       stdio: ['pipe', 'pipe', 'pipe'],
     })
     const stderr: Buffer[] = []
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
-    child.stdin.end('n\nn\n')
+    child.stdin.end('consumer-app\nn\nn\n')
 
     const [exitCode] = (await once(child, 'exit')) as [number | null]
     const ctaConfig = await readFile(join(directory, '.cta.json'), 'utf-8')
@@ -55,6 +139,9 @@ describe('template setup', () => {
     expect(Buffer.concat(stderr).toString()).toBe('')
     expect(exitCode).toBe(0)
     expect(ctaConfig).toContain('"projectName": "consumer-app"')
+    expect(
+      await readFile(join(directory, 'cloudflare.config.ts'), 'utf-8'),
+    ).toContain("name: 'consumer-app'")
     expect(ctaConfig).toContain('"chosenAddOns": ["cloudflare"]')
     expect(worktreeInclude).toBe(
       '/.dev.vars\n/.cloudflare.json\n/.dev.vars.production\n',
@@ -93,7 +180,7 @@ describe('template setup', () => {
           scripts: [
             {
               name: 'Start app',
-              command: 'bun run dev',
+              command: 'pnpm run dev',
               icon: 'play',
             },
             {
@@ -112,11 +199,15 @@ describe('template setup', () => {
     expect(gitInit.status).toBe(0)
 
     for (let run = 0; run < 2; run += 1) {
-      const child = spawn('bun', ['scripts/setup.ts', 'consumer-app'], {
-        cwd: directory,
-        env: withoutCloudflareCredentials(process.env),
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
+      const child = spawn(
+        process.execPath,
+        ['scripts/setup.ts', 'consumer-app'],
+        {
+          cwd: directory,
+          env: withoutCloudflareCredentials(process.env),
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      )
       child.stdin.end('n\nn\n')
 
       const [exitCode] = (await once(child, 'exit')) as [number | null]
@@ -144,7 +235,7 @@ describe('template setup', () => {
     expect(t3Project.defaultThreadEnvMode).toBe('worktree')
     expect(t3Project.scripts).toContainEqual({
       name: 'Start app',
-      command: 'bun run dev',
+      command: 'pnpm run dev',
       icon: 'play',
     })
     expect(
@@ -182,11 +273,15 @@ describe('template setup', () => {
 
     expect(gitInit.status).toBe(0)
 
-    const setup = spawn('bun', ['scripts/setup.ts', 'consumer-app'], {
-      cwd: directory,
-      env: withoutCloudflareCredentials(process.env),
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
+    const setup = spawn(
+      process.execPath,
+      ['scripts/setup.ts', 'consumer-app'],
+      {
+        cwd: directory,
+        env: withoutCloudflareCredentials(process.env),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
     setup.stdin.end('n\nn\n')
 
     const [setupExitCode] = (await once(setup, 'exit')) as [number | null]
@@ -220,7 +315,7 @@ describe('template setup', () => {
 
     const effectRepository = await createEffectSourceRepository()
     const commandLog = join(worktree, 'commands.log')
-    const stubBinaryDirectory = await writeBunInstallStub(
+    const stubBinaryDirectory = await writePnpmInstallStub(
       await createTemporaryDirectory(),
       commandLog,
     )
@@ -276,6 +371,8 @@ describe('template setup', () => {
         'describe',
         '--tags',
         '--exact-match',
+        '--match',
+        `effect@${TEST_EFFECT_VERSION}`,
         'HEAD',
       ],
       { encoding: 'utf-8' },
@@ -298,17 +395,21 @@ describe('template setup', () => {
 
   test('pins the selected Cloudflare profile and account', async () => {
     const directory = await createSetupFixture()
-    const logPath = join(directory, 'wrangler.log')
-    await writeWranglerStub(directory)
+    const logPath = join(directory, 'cf.log')
+    await writeCfStub(directory)
 
-    const child = spawn('bun', ['scripts/setup.ts', 'consumer-app'], {
-      cwd: directory,
-      env: withoutCloudflareCredentials({
-        ...process.env,
-        SHADOW_SETUP_TEST_LOG: logPath,
-      }),
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
+    const child = spawn(
+      process.execPath,
+      ['scripts/setup.ts', 'consumer-app'],
+      {
+        cwd: directory,
+        env: withoutCloudflareCredentials({
+          ...process.env,
+          SHADOW_SETUP_TEST_LOG: logPath,
+        }),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
     child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk))
@@ -319,11 +420,11 @@ describe('template setup', () => {
     const cloudflareConfig = JSON.parse(
       await readFile(join(directory, '.cloudflare.json'), 'utf-8'),
     ) as { profile: string; accountId: string }
-    const wranglerConfig = await readFile(
-      join(directory, 'wrangler.jsonc'),
+    const workerConfig = await readFile(
+      join(directory, 'cloudflare.config.ts'),
       'utf-8',
     )
-    const wranglerLog = await readFile(logPath, 'utf-8')
+    const cfLog = await readFile(logPath, 'utf-8')
 
     expect(Buffer.concat(stderr).toString()).toBe('')
     expect(exitCode).toBe(0)
@@ -331,11 +432,11 @@ describe('template setup', () => {
       profile: 'client-profile',
       accountId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     })
-    expect(wranglerConfig).toContain(
-      '"account_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"',
+    expect(workerConfig).toContain(
+      "const accountId: string | undefined = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'",
     )
-    expect(wranglerLog).toContain('auth activate client-profile ')
-    expect(wranglerLog).toContain('whoami --json')
+    expect(cfLog).toContain('auth activate client-profile ')
+    expect(cfLog).toContain('auth whoami --profile client-profile')
     expect(Buffer.concat(stdout).toString()).toContain(
       'Cloudflare profile "client-profile" is pinned to Beta Account',
     )
@@ -354,6 +455,12 @@ async function createTemporaryDirectory(): Promise<string> {
 async function createSetupFixture(targetDirectory?: string): Promise<string> {
   const directory = targetDirectory ?? (await createTemporaryDirectory())
   await mkdir(directory, { recursive: true })
+  await mkdir(join(directory, 'node_modules'), { recursive: true })
+  await symlink(
+    join(ROOT, 'node_modules/effect'),
+    join(directory, 'node_modules/effect'),
+    'dir',
+  )
 
   const files = [
     '.gitignore',
@@ -363,10 +470,12 @@ async function createSetupFixture(targetDirectory?: string): Promise<string> {
     'scripts/apply-worktreeinclude.mjs',
     'scripts/cloudflare-config.ts',
     'scripts/prepare-effect.mjs',
+    'scripts/production-database.ts',
     'scripts/setup.ts',
     'scripts/setup-worktree.mjs',
     'src/routes/__root.tsx',
-    'wrangler.jsonc',
+    'cloudflare.config.ts',
+    'turso.production.json',
   ]
 
   for (const file of files) {
@@ -394,6 +503,7 @@ async function createEffectSourceRepository(): Promise<string> {
       'Initial Effect source',
     ],
     ['tag', `effect@${TEST_EFFECT_VERSION}`],
+    ['tag', `@effect/platform-bun@${TEST_EFFECT_VERSION}`],
   ]
 
   await writeFile(join(directory, 'README.md'), 'Effect source fixture\n')
@@ -406,12 +516,12 @@ async function createEffectSourceRepository(): Promise<string> {
   return directory
 }
 
-async function writeBunInstallStub(
+async function writePnpmInstallStub(
   directory: string,
   logPath: string,
 ): Promise<string> {
   const binaryDirectory = join(directory, 'bin')
-  const binaryPath = join(binaryDirectory, 'bun')
+  const binaryPath = join(binaryDirectory, 'pnpm')
   await mkdir(binaryDirectory, { recursive: true })
   await writeFile(logPath, '')
   await writeFile(
@@ -433,12 +543,12 @@ writeFileSync(packagePath, JSON.stringify({ version: '${TEST_EFFECT_VERSION}' })
   return binaryDirectory
 }
 
-async function writeWranglerStub(directory: string): Promise<void> {
-  const binaryPath = join(directory, 'node_modules/.bin/wrangler')
+async function writeCfStub(directory: string): Promise<void> {
+  const binaryPath = join(directory, 'node_modules/cf/bin/cf')
   await mkdir(dirname(binaryPath), { recursive: true })
   await writeFile(
     binaryPath,
-    `#!/usr/bin/env bun
+    `#!/usr/bin/env node
 import { appendFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
@@ -448,9 +558,10 @@ if (args[0] === 'auth' && args[1] === 'activate') {
   process.exit(0)
 }
 
-if (args[0] === 'whoami' && args[1] === '--json') {
+if (args[0] === 'auth' && args[1] === 'whoami') {
   console.log(JSON.stringify({
-    loggedIn: true,
+    authenticated: true,
+    tokenValid: true,
     accounts: [
       { id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', name: 'Alpha Account' },
       { id: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', name: 'Beta Account' },

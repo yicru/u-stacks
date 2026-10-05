@@ -1,18 +1,12 @@
-import { Effect } from 'effect'
 import { createFileRoute } from '@tanstack/react-router'
 import { CreateTaskForm } from '@/features/task/components/create-task-form'
 import { TaskList } from '@/features/task/components/task-list'
-import { apiClient } from '@/lib/api-client'
+import { loadTasks } from '@/features/task/load-tasks'
 import { Separator } from '@/components/ui/separator'
 
 export const Route = createFileRoute('/')({
-  loader: async () => {
-    return Effect.runPromise(
-      apiClient.tasks.getTasks({
-        query: { page: 1, perPage: 10 },
-      }),
-    )
-  },
+  loader: ({ abortController }) =>
+    loadTasks({ page: 1, perPage: 10 }, abortController.signal),
   component: App,
 })
 

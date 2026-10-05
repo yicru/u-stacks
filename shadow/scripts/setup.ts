@@ -1,19 +1,21 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { basename, join, relative, resolve } from 'node:path'
+import { pinProductionDatabase } from './production-database.ts'
 import {
   findCloudflareCredentialEnvironmentVariable,
   isNamedCloudflareProfile,
   parseCloudflareAccounts,
   parseCloudflareConfiguration,
+  resolveCloudflareCommand,
   suppressCloudflareCredentialEnvironmentVariables,
   type CloudflareAccount,
   type CloudflareConfiguration as StoredCloudflareConfiguration,
-} from './cloudflare-config'
+} from './cloudflare-config.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const PACKAGE_JSON_PATH = join(ROOT, 'package.json')
-const WRANGLER_CONFIG_PATH = join(ROOT, 'wrangler.jsonc')
+const WORKER_CONFIG_PATH = join(ROOT, 'cloudflare.config.ts')
 const CTA_CONFIG_PATH = join(ROOT, '.cta.json')
 const ROOT_ROUTE_PATH = join(ROOT, 'src/routes/__root.tsx')
 const README_PATH = join(ROOT, 'README.md')
@@ -30,12 +32,7 @@ const EFFECT_SOURCE_IGNORE_PATTERN = '/.repos/effect/'
 const T3_SCHEMA_URL = 'https://t3.codes/schema/t3.json'
 const T3_WORKTREE_SETUP_SCRIPT_NAME = 'Setup Shadow Worktree'
 const LEGACY_T3_WORKTREE_SETUP_SCRIPT_NAME = 'Apply .worktreeinclude'
-const LOCAL_WRANGLER_PATH = join(
-  ROOT,
-  'node_modules',
-  '.bin',
-  process.platform === 'win32' ? 'wrangler.cmd' : 'wrangler',
-)
+const DEFAULT_TURSO_LOCATION = 'aws-ap-northeast-1'
 
 type PackageJson = {
   name?: string
@@ -93,9 +90,12 @@ console.log('✨ Worktree local files have been registered.')
 console.log('✨ T3 Code worktree setup has been registered.')
 if (productionTursoConfigured) {
   console.log('✨ Production Turso environment variables have been set.')
+  console.log(
+    '✨ Production database hostname is pinned in turso.production.json.',
+  )
 } else {
   console.log(
-    'ℹ️ Production Turso setup was skipped. Configure .dev.vars.production before deploying.',
+    'ℹ️ Production Turso setup was skipped. Configure .dev.vars.production before deploying and turso.production.json before migrating.',
   )
 }
 if (cloudflareConfiguration) {
@@ -104,7 +104,7 @@ if (cloudflareConfiguration) {
     `✨ Cloudflare profile "${profile}" is pinned to ${account.name} (${account.id}).`,
   )
   console.log(
-    'ℹ️ Cloudflare resources and API tokens were not created. Add bindings during development, then run `bun run cloudflare -- plan`.',
+    'ℹ️ Cloudflare resources and API tokens were not created. Add bindings during development, then run `pnpm run cloudflare plan`.',
   )
 } else {
   console.log(
@@ -128,16 +128,25 @@ function configureWorktreeIncludes(repositoryRoot: string): void {
   const missingPatterns = patterns.filter(
     (pattern) => !hasActivePattern(currentContent, pattern),
   )
+  appendPatterns(worktreeIncludePath, currentContent, missingPatterns)
+}
 
-  if (missingPatterns.length === 0) {
-    return
-  }
+function appendPatterns(
+  filePath: string,
+  content: string,
+  patterns: string[],
+): void {
+  if (!patterns.length) return
+  writeFileSync(
+    filePath,
+    `${withFinalNewline(content)}${patterns.join('\n')}\n`,
+  )
+}
 
-  const prefix =
-    currentContent.length === 0 || currentContent.endsWith('\n')
-      ? currentContent
-      : `${currentContent}\n`
-  writeFileSync(worktreeIncludePath, `${prefix}${missingPatterns.join('\n')}\n`)
+function withFinalNewline(content: string): string {
+  return content.length === 0 || content.endsWith('\n')
+    ? content
+    : `${content}\n`
 }
 
 function configureT3Project(repositoryRoot: string): void {
@@ -174,16 +183,9 @@ function configureEffectSourceIgnore(repositoryRoot: string): void {
   const currentContent = existsSync(gitIgnorePath)
     ? readFileSync(gitIgnorePath, 'utf-8')
     : ''
-
-  if (hasActiveDirectoryPattern(currentContent, EFFECT_SOURCE_IGNORE_PATTERN)) {
+  if (hasActiveDirectoryPattern(currentContent, EFFECT_SOURCE_IGNORE_PATTERN))
     return
-  }
-
-  const prefix =
-    currentContent.length === 0 || currentContent.endsWith('\n')
-      ? currentContent
-      : `${currentContent}\n`
-  writeFileSync(gitIgnorePath, `${prefix}${EFFECT_SOURCE_IGNORE_PATTERN}\n`)
+  appendPatterns(gitIgnorePath, currentContent, [EFFECT_SOURCE_IGNORE_PATTERN])
 }
 
 function createT3WorktreeSetupScript(
@@ -209,27 +211,15 @@ function quoteShellArgument(value: string): string {
 function hasActiveDirectoryPattern(content: string, pattern: string): boolean {
   const withoutLeadingSlash = pattern.replace(/^\//, '')
   const withoutTrailingSlash = pattern.replace(/\/$/, '')
-  const equivalentPatterns = new Set([
-    pattern,
-    withoutLeadingSlash,
-    withoutTrailingSlash,
-    withoutLeadingSlash.replace(/\/$/, ''),
-  ])
-  let active = false
-
-  for (const line of content.split(/\r?\n/)) {
-    const candidate = line.trim()
-    if (equivalentPatterns.has(candidate)) {
-      active = true
-    } else if (
-      candidate.startsWith('!') &&
-      equivalentPatterns.has(candidate.slice(1))
-    ) {
-      active = false
-    }
-  }
-
-  return active
+  return isActivePattern(
+    content,
+    new Set([
+      pattern,
+      withoutLeadingSlash,
+      withoutTrailingSlash,
+      withoutLeadingSlash.replace(/\/$/, ''),
+    ]),
+  )
 }
 
 function readT3Project(filePath: string): Record<string, unknown> {
@@ -280,22 +270,20 @@ function findRepositoryRoot(): string {
 }
 
 function hasActivePattern(content: string, pattern: string): boolean {
-  const equivalentPatterns = new Set([pattern, pattern.slice(1)])
-  let active = false
+  return isActivePattern(content, new Set([pattern, pattern.slice(1)]))
+}
 
-  for (const line of content.split(/\r?\n/)) {
+function isActivePattern(
+  content: string,
+  equivalentPatterns: ReadonlySet<string>,
+): boolean {
+  return content.split(/\r?\n/).reduce((active, line) => {
     const candidate = line.trim()
-    if (equivalentPatterns.has(candidate)) {
-      active = true
-    } else if (
-      candidate.startsWith('!') &&
-      equivalentPatterns.has(candidate.slice(1))
-    ) {
-      active = false
-    }
-  }
-
-  return active
+    if (equivalentPatterns.has(candidate)) return true
+    if (candidate.startsWith('!') && equivalentPatterns.has(candidate.slice(1)))
+      return false
+    return active
+  }, false)
 }
 
 function configureProductionTurso(projectName: string): boolean {
@@ -355,7 +343,15 @@ function createTursoDatabase(
   }
 
   const groupName = selectTursoGroup()
-  const groupArgs = groupName ? ['--group', groupName] : []
+  const groupArgs = groupName
+    ? ['--group', groupName]
+    : [
+        '--location',
+        askRequired(
+          `Turso location (${DEFAULT_TURSO_LOCATION}):`,
+          DEFAULT_TURSO_LOCATION,
+        ),
+      ]
   runTursoCommand(
     ['db', 'create', databaseName, ...groupArgs, '--wait'],
     'Failed to create Turso database.',
@@ -379,6 +375,10 @@ function writeTursoCredentials({
   databaseUrl,
   authToken,
 }: ReturnType<typeof getTursoCredentials>): void {
+  pinProductionDatabase(
+    databaseUrl,
+    new URL('../turso.production.json', import.meta.url),
+  )
   writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
 }
 
@@ -390,7 +390,7 @@ function configureTursoManually(): boolean {
   const databaseUrl = askRequired('TURSO_DATABASE_URL:', '')
   const authToken = askRequired('TURSO_AUTH_TOKEN:', '')
 
-  writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
+  writeTursoCredentials({ databaseUrl, authToken })
 
   return true
 }
@@ -403,7 +403,7 @@ function selectTursoGroup(): string | null {
       return askOptionalGroupName()
     }
 
-    console.log('Available Turso groups:')
+    console.log('Choose a Japan group to match the Worker placement in Tokyo:')
     groups.forEach((group, index) => {
       console.log(`${index + 1}. ${group}`)
     })
@@ -477,7 +477,7 @@ function parseGroupIndex(
 
 function askOptionalGroupName(): string | null {
   const groupName = ask(
-    'Enter Turso group name (leave blank to use Turso default placement):',
+    'Enter Turso group name (leave blank to choose a location; Tokyo is the default):',
   )
 
   return groupName || null
@@ -488,6 +488,7 @@ function getTursoGroups(): string[] {
     ['group', 'list'],
     'Failed to list Turso groups.',
   )
+  console.log(output)
 
   const groups = output
     .split(/\r?\n/)
@@ -588,15 +589,15 @@ function configureCloudflareDeployment(): CloudflareConfiguration | null {
     return null
   }
 
-  const wranglerCommand = prepareWranglerCommand()
-  if (!wranglerCommand) {
+  const cfCommand = prepareCfCommand()
+  if (!cfCommand) {
     return null
   }
 
-  return configureCloudflareWithWrangler(wranglerCommand)
+  return configureCloudflareWithCf(cfCommand)
 }
 
-function prepareWranglerCommand(): string | null {
+function prepareCfCommand(): string | null {
   const credentialEnvironmentVariable =
     findCloudflareCredentialEnvironmentVariable(process.env)
   if (credentialEnvironmentVariable) {
@@ -606,21 +607,21 @@ function prepareWranglerCommand(): string | null {
     return null
   }
 
-  const wranglerCommand = resolveWranglerCommand()
-  if (!wranglerCommand) {
+  const cfCommand = resolveCfCommand()
+  if (!cfCommand) {
     console.error(
-      'Wrangler was not found. Run `bun install`, then run `bun run setup` again.',
+      'cf was not found. Run `pnpm install`, then run `pnpm run setup` again.',
     )
     return null
   }
 
-  return wranglerCommand
+  return cfCommand
 }
 
-function configureCloudflareWithWrangler(
-  wranglerCommand: string,
+function configureCloudflareWithCf(
+  cfCommand: string,
 ): CloudflareConfiguration | null {
-  const configuration = resolveCloudflareConfiguration(wranglerCommand)
+  const configuration = resolveCloudflareConfiguration(cfCommand)
   if (!configuration) {
     return null
   }
@@ -630,11 +631,11 @@ function configureCloudflareWithWrangler(
 }
 
 function resolveCloudflareConfiguration(
-  wranglerCommand: string,
+  cfCommand: string,
 ): CloudflareConfiguration | null {
   const currentConfiguration = readStoredCloudflareConfiguration()
   const profile = resolveCloudflareProfile(
-    wranglerCommand,
+    cfCommand,
     currentConfiguration?.profile,
   )
   if (!profile) {
@@ -642,26 +643,26 @@ function resolveCloudflareConfiguration(
   }
 
   return resolveCloudflareAccount(
-    wranglerCommand,
+    cfCommand,
     profile,
     currentConfiguration?.accountId,
   )
 }
 
 function resolveCloudflareProfile(
-  wranglerCommand: string,
+  cfCommand: string,
   currentProfile?: string,
 ): string | null {
   const profile = askCloudflareProfile(currentProfile)
-  return ensureCloudflareProfile(wranglerCommand, profile) ? profile : null
+  return ensureCloudflareProfile(cfCommand, profile) ? profile : null
 }
 
 function resolveCloudflareAccount(
-  wranglerCommand: string,
+  cfCommand: string,
   profile: string,
   currentAccountId?: string,
 ): CloudflareConfiguration | null {
-  const accounts = getCloudflareAccountsWithRecovery(wranglerCommand, profile)
+  const accounts = getCloudflareAccountsWithRecovery(cfCommand, profile)
   if (!accounts) {
     return null
   }
@@ -680,15 +681,11 @@ function persistCloudflareConfiguration(
   } satisfies StoredCloudflareConfiguration
 
   writeJson(CLOUDFLARE_CONFIG_PATH, storedConfiguration)
-  updateWranglerAccountId(account.id)
+  updateCloudflareAccountId(account.id)
 }
 
-function resolveWranglerCommand(): string | null {
-  if (existsSync(LOCAL_WRANGLER_PATH)) {
-    return LOCAL_WRANGLER_PATH
-  }
-
-  return hasCommand('wrangler') ? 'wrangler' : null
+function resolveCfCommand(): string | null {
+  return resolveCloudflareCommand(ROOT)
 }
 
 function askCloudflareProfile(currentProfile?: string): string {
@@ -708,14 +705,11 @@ function askCloudflareProfile(currentProfile?: string): string {
 
 function cloudflareProfileQuestion(currentProfile?: string): string {
   const suffix = currentProfile ? ` (${currentProfile})` : ''
-  return `Cloudflare Wrangler profile name${suffix}:`
+  return `Cloudflare cf profile name${suffix}:`
 }
 
-function ensureCloudflareProfile(
-  wranglerCommand: string,
-  profile: string,
-): boolean {
-  const activation = activateCloudflareProfile(wranglerCommand, profile)
+function ensureCloudflareProfile(cfCommand: string, profile: string): boolean {
+  const activation = activateCloudflareProfile(cfCommand, profile)
   if (activation.ok) {
     return true
   }
@@ -732,14 +726,14 @@ function ensureCloudflareProfile(
     return false
   }
 
-  return createAndActivateCloudflareProfile(wranglerCommand, profile)
+  return createAndActivateCloudflareProfile(cfCommand, profile)
 }
 
 function createAndActivateCloudflareProfile(
-  wranglerCommand: string,
+  cfCommand: string,
   profile: string,
 ): boolean {
-  const created = spawnSync(wranglerCommand, ['auth', 'create', profile], {
+  const created = spawnSync('node', [cfCommand, 'auth', 'create', profile], {
     cwd: ROOT,
     env: suppressCloudflareCredentialEnvironmentVariables(process.env),
     stdio: 'inherit',
@@ -751,7 +745,7 @@ function createAndActivateCloudflareProfile(
     return false
   }
 
-  const retry = activateCloudflareProfile(wranglerCommand, profile)
+  const retry = activateCloudflareProfile(cfCommand, profile)
   if (retry.ok) {
     return true
   }
@@ -763,12 +757,12 @@ function createAndActivateCloudflareProfile(
 }
 
 function activateCloudflareProfile(
-  wranglerCommand: string,
+  cfCommand: string,
   profile: string,
 ): { ok: boolean; detail: string } {
   const result = spawnSync(
-    wranglerCommand,
-    ['auth', 'activate', profile, ROOT],
+    'node',
+    [cfCommand, 'auth', 'activate', profile, ROOT],
     {
       cwd: ROOT,
       encoding: 'utf-8',
@@ -783,10 +777,10 @@ function activateCloudflareProfile(
 }
 
 function getCloudflareAccountsWithRecovery(
-  wranglerCommand: string,
+  cfCommand: string,
   profile: string,
 ): CloudflareAccount[] | null {
-  const accounts = tryGetCloudflareAccounts(wranglerCommand)
+  const accounts = tryGetCloudflareAccounts(cfCommand, profile)
   if (accounts) {
     return accounts
   }
@@ -800,18 +794,19 @@ function getCloudflareAccountsWithRecovery(
     return null
   }
 
-  if (!createAndActivateCloudflareProfile(wranglerCommand, profile)) {
+  if (!createAndActivateCloudflareProfile(cfCommand, profile)) {
     return null
   }
 
-  return tryGetCloudflareAccounts(wranglerCommand)
+  return tryGetCloudflareAccounts(cfCommand, profile)
 }
 
 function tryGetCloudflareAccounts(
-  wranglerCommand: string,
+  cfCommand: string,
+  profile: string,
 ): CloudflareAccount[] | null {
   try {
-    return getCloudflareAccounts(wranglerCommand)
+    return getCloudflareAccounts(cfCommand, profile)
   } catch (error) {
     const message =
       error instanceof Error
@@ -822,21 +817,19 @@ function tryGetCloudflareAccounts(
   }
 }
 
-function getCloudflareAccounts(wranglerCommand: string): CloudflareAccount[] {
-  const result = spawnSync(wranglerCommand, ['whoami', '--json'], {
-    cwd: ROOT,
-    encoding: 'utf-8',
-    env: suppressCloudflareCredentialEnvironmentVariables(process.env),
-  })
-  const detail = [result.stdout, result.stderr].join('\n').trim()
-
-  if (result.status !== 0) {
-    throw new Error(detail || 'Failed to read Cloudflare accounts.')
+function getCloudflareAccounts(
+  cfCommand: string,
+  profile: string,
+): CloudflareAccount[] {
+  const identity = readCloudflareIdentity(cfCommand, profile)
+  if (!isAuthenticatedCloudflareIdentity(identity)) {
+    throw new Error(
+      'cf authentication is unavailable. cf uses a separate credential store from Wrangler.',
+    )
   }
-
-  const accounts = parseCloudflareAccounts(JSON.parse(result.stdout))
+  const accounts = parseCloudflareAccounts(identity)
   if (accounts.length === 0) {
-    throw new Error('Wrangler returned an invalid account list.')
+    throw new Error('cf returned an invalid account list.')
   }
 
   return accounts
@@ -939,27 +932,21 @@ function reportUnreadableCloudflareConfiguration(): null {
   return null
 }
 
-function updateWranglerAccountId(accountId: string): void {
-  const currentConfig = readFileSync(WRANGLER_CONFIG_PATH, 'utf-8')
-  const accountPattern = /^(\s*"account_id"\s*:\s*)"[^"]*"/m
-
-  if (accountPattern.test(currentConfig)) {
-    writeFileSync(
-      WRANGLER_CONFIG_PATH,
-      currentConfig.replace(accountPattern, `$1"${accountId}"`),
-    )
-    return
-  }
-
+function updateCloudflareAccountId(accountId: string): void {
+  const currentConfig = readFileSync(WORKER_CONFIG_PATH, 'utf-8')
   const nextConfig = currentConfig.replace(
-    /^(\s*)("name"\s*:\s*"[^"]+")\s*,?\s*$/m,
-    `$1$2,\n$1"account_id": "${accountId}",`,
+    /^const accountId: string \| undefined = .*$/m,
+    `const accountId: string | undefined = '${accountId}'`,
   )
-  if (nextConfig === currentConfig) {
-    throw new Error('Could not add account_id to wrangler.jsonc.')
+  if (
+    nextConfig === currentConfig &&
+    !currentConfig.includes(
+      `const accountId: string | undefined = '${accountId}'`,
+    )
+  ) {
+    throw new Error('Could not set accountId in cloudflare.config.ts.')
   }
-
-  writeFileSync(WRANGLER_CONFIG_PATH, nextConfig)
+  writeFileSync(WORKER_CONFIG_PATH, nextConfig)
 }
 
 function updateEnvContent(
@@ -1012,11 +999,11 @@ function renameProject(nextAppName: string): void {
   )
   writeFileSync(CTA_CONFIG_PATH, ctaConfig)
 
-  const wranglerConfig = readFileSync(WRANGLER_CONFIG_PATH, 'utf-8').replace(
-    /"name":\s*"[^"]+"/,
-    `"name": "${nextAppName}"`,
+  const workerConfig = readFileSync(WORKER_CONFIG_PATH, 'utf-8').replace(
+    /name:\s*'[^']+'/,
+    `name: '${nextAppName}'`,
   )
-  writeFileSync(WRANGLER_CONFIG_PATH, wranglerConfig)
+  writeFileSync(WORKER_CONFIG_PATH, workerConfig)
 
   const rootRoute = readFileSync(ROOT_ROUTE_PATH, 'utf-8').replace(
     /title:\s*'[^']+'/,
@@ -1030,7 +1017,7 @@ function ensureSetupScript(): void {
     readFileSync(PACKAGE_JSON_PATH, 'utf-8'),
   ) as PackageJson
   packageJson.scripts ??= {}
-  packageJson.scripts.setup = 'bun scripts/setup.ts'
+  packageJson.scripts.setup = 'node scripts/setup.ts'
   writeJson(PACKAGE_JSON_PATH, packageJson)
 }
 
@@ -1093,7 +1080,14 @@ function toKebabCase(value: string | null | undefined): string | undefined {
 }
 
 function ask(question: string): string | null {
-  return prompt(question)?.trim() ?? null
+  process.stdout.write(`${question} `)
+  const bytes: number[] = []
+  const byte = Buffer.alloc(1)
+  while (readSync(process.stdin.fd, byte, 0, 1, null) > 0) {
+    if (byte[0] === 10) break
+    bytes.push(byte[0])
+  }
+  return bytes.length ? Buffer.from(bytes).toString('utf-8').trim() : null
 }
 
 function askRequired(question: string, fallback: string): string {
@@ -1126,4 +1120,29 @@ function confirm(question: string, defaultValue: boolean): boolean {
 
   console.log('Please answer with y or n.')
   return confirm(question, defaultValue)
+}
+
+function isAuthenticatedCloudflareIdentity(value: unknown): boolean {
+  return (
+    isRecord(value) && value.authenticated === true && value.tokenValid === true
+  )
+}
+
+function readCloudflareIdentity(cfCommand: string, profile: string): unknown {
+  const result = spawnSync(
+    'node',
+    [cfCommand, 'auth', 'whoami', '--profile', profile],
+    {
+      cwd: ROOT,
+      encoding: 'utf-8',
+      env: suppressCloudflareCredentialEnvironmentVariables(process.env),
+    },
+  )
+  const detail = [result.stdout, result.stderr].join('\n').trim()
+
+  if (result.status !== 0) {
+    throw new Error(detail || 'Failed to read Cloudflare accounts.')
+  }
+
+  return JSON.parse(result.stdout)
 }

@@ -15,7 +15,6 @@
 - `effect`と`@effect/platform`だけをEffect移行用dependencyとして追加する。
 - `hono`、`@hono/zod-validator`、`drizzle-zod`を削除する。
 - frontend form validationが使用する`zod`は残す。
-- `@libsql/client`は`0.15.15`のpinを維持する。
 - `src`から`server`をruntime importしない。
 - `as any`、`@ts-ignore`、`@ts-expect-error`を追加しない。
 - production codeへcommentを追加しない。
@@ -1710,7 +1709,7 @@ cd shadow
 bun remove hono @hono/zod-validator drizzle-zod
 ```
 
-Expected: `package.json`と`bun.lock`から3 packageが削除され、`zod`と`@libsql/client@0.15.15`は残る。
+Expected: `package.json`と`bun.lock`から3 packageが削除され、`zod`と`@libsql/client`は残る。
 
 - [ ] **Step 8: Hono artifact auditをGREENにする**
 
@@ -1816,7 +1815,7 @@ Expected:
 ```text
 effect 3.21.x
 @effect/platform 0.97.x
-@libsql/client 0.15.15
+@libsql/client
 ```
 
 Hono関連3 packageはdirect dependencyとして表示されない。

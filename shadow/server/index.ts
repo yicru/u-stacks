@@ -1,8 +1,11 @@
-import { Layer } from 'effect'
-import { DatabaseLive } from '@server/db/live'
-import { TaskService } from '@server/modules/task/service'
 import { makeApiHandler } from './handler'
+import { recordApiRequest, traceApiRequest } from './observability'
+import { memoMap, TaskServiceProduction } from './runtime'
 
-const TaskServiceProduction = TaskService.Live.pipe(Layer.provide(DatabaseLive))
+const api = makeApiHandler(TaskServiceProduction, {
+  memoMap,
+  onRequest: recordApiRequest,
+})
 
-export const { handler } = makeApiHandler(TaskServiceProduction)
+export const handler = (request: Request) =>
+  traceApiRequest(request, () => api.handler(request))

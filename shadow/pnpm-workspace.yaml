@@ -1,0 +1,35 @@
+packages:
+  - .
+
+overrides:
+  esbuild: 0.28.2
+  vite: npm:@voidzero-dev/vite-plus-core@1.0.0
+
+peerDependencyRules:
+  allowedVersions:
+    vite: 1.0.0
+
+patchedDependencies:
+  braces@3.0.3: patches/braces@3.0.3.patch
+  node-forge@1.4.0: patches/node-forge@1.4.0.patch
+
+allowBuilds:
+  esbuild@0.28.2: true
+  msgpackr-extract@3.0.4: true
+  workerd@1.20260930.2: true
+  workerd@1.20261001.1: true
+
+minimumReleaseAge: 1440
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - semver@6.3.1
+
+minimumReleaseAgeExclude:
+  - data-urls@8.0.0
+  - effect@4.0.1
+  - hono@4.13.13
+  - jsdom@30.1.2
+  - oxlint-plugin-react-doctor@0.9.16
+  - react-doctor@0.9.16
+  - tr46@7.0.0
+  - whatwg-url@17.2.0

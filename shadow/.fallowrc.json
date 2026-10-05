@@ -1,25 +1,35 @@
 {
   "$schema": "./node_modules/fallow/schema.json",
-  "entry": ["src/start.ts"],
+  "entry": [
+    "src/start.ts",
+    "cloudflare.config.ts",
+    "scripts/setup-worktree.mjs",
+    "scripts/apply-worktreeinclude.mjs",
+    "scripts/prepare-effect.mjs"
+  ],
   "ignorePatterns": [
     "src/components/ui/**",
     "src/hooks/use-mobile.ts",
     "src/lib/utils.ts",
     "src/routeTree.gen.ts",
-    "worker-configuration.d.ts"
+    ".cloudflare/**",
+    ".agents/skills/**",
+    ".scaffdog/**"
   ],
   "ignoreDependencies": [
     "@base-ui/react",
     "@daypicker/react",
+    "@shadcn/lint",
+    "@shadcn/react",
     "class-variance-authority",
-    "clsx",
     "cmdk",
+    "cn",
     "embla-carousel-react",
     "input-otp",
+    "portless",
     "react-resizable-panels",
     "recharts",
     "shadcn",
-    "tailwind-merge",
     "vaul"
   ],
   "audit": {

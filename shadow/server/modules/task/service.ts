@@ -1,5 +1,6 @@
 import { Database } from '@server/db'
 import { tasks } from '@server/db/schema'
+import { DatabaseTracing } from '@server/db/tracing'
 import { toPaginatedResponse, withPagination } from '@server/lib/pagination'
 import { InternalError, NotFoundError } from '@shared/api/errors'
 import type {
@@ -9,7 +10,7 @@ import type {
   TaskResponse,
   TaskUpdateBody,
 } from '@shared/api/task'
-import { count, eq, getTableColumns } from 'drizzle-orm'
+import { count, desc, eq, getTableColumns } from 'drizzle-orm'
 import { Context, Effect, Layer } from 'effect'
 
 export interface TaskServiceShape {
@@ -39,20 +40,22 @@ export class TaskService extends Context.Service<
     TaskService,
     Effect.gen(function* () {
       const database = yield* Database
+      const tracing = yield* DatabaseTracing
 
-      const run = <A>(operation: () => Promise<A>) =>
-        Effect.tryPromise(operation).pipe(
+      const run = <A>(name: string, operation: () => Promise<A>) =>
+        Effect.tryPromise(() => tracing.query(name, operation)).pipe(
           Effect.tapError((cause) => Effect.logError(cause)),
           Effect.mapError(() => InternalError.makeInternal()),
         )
 
       return {
         list: Effect.fn('TaskService.list')(function* (query: TaskListQuery) {
-          return yield* run(async () => {
+          return yield* run('tasks.list', async () => {
             const selection = database
               .select({ ...getTableColumns(tasks) })
               .from(tasks)
-            const [data, totals] = await Promise.all([
+              .orderBy(desc(tasks.createdAt), desc(tasks.id))
+            const [data, totals] = await database.batch([
               withPagination(selection.$dynamic(), query),
               database.select({ total: count() }).from(tasks),
             ])
@@ -64,11 +67,12 @@ export class TaskService extends Context.Service<
           })
         }),
         get: Effect.fn('TaskService.get')(function* (id: string) {
-          const data = yield* run(() =>
+          const data = yield* run('tasks.get', () =>
             database
               .select({ ...getTableColumns(tasks) })
               .from(tasks)
-              .where(eq(tasks.id, id)),
+              .where(eq(tasks.id, id))
+              .limit(1),
           )
           if (!data[0]) {
             return yield* Effect.fail(
@@ -80,7 +84,7 @@ export class TaskService extends Context.Service<
         create: Effect.fn('TaskService.create')(function* (
           body: TaskCreateBody,
         ) {
-          const data = yield* run(() =>
+          const data = yield* run('tasks.create', () =>
             database
               .insert(tasks)
               .values(body)
@@ -95,7 +99,7 @@ export class TaskService extends Context.Service<
           id: string,
           body: TaskUpdateBody,
         ) {
-          const data = yield* run(() =>
+          const data = yield* run('tasks.update', () =>
             database
               .update(tasks)
               .set(body)
@@ -110,7 +114,7 @@ export class TaskService extends Context.Service<
           return { data: data[0] }
         }),
         remove: Effect.fn('TaskService.remove')(function* (id: string) {
-          const data = yield* run(() =>
+          const data = yield* run('tasks.remove', () =>
             database
               .delete(tasks)
               .where(eq(tasks.id, id))

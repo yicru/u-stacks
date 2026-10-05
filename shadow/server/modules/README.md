@@ -44,11 +44,7 @@ endpoint identifierは生成clientのmethod名になるため、`getResources`�
 
 ```typescript
 import { Schema } from 'effect'
-import {
-  HttpApiEndpoint,
-  HttpApiGroup,
-  HttpApiSchema,
-} from 'effect/unstable/httpapi'
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/http-api'
 import { InternalError } from './errors'
 
 export const Project = Schema.Struct({
@@ -81,7 +77,7 @@ handler groupの構築時にserviceを`yield*`し、各endpointへclose overす�
 
 ```typescript
 import { Effect } from 'effect'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AppApi } from '@shared/api'
 import { ProjectService } from './service'
 
@@ -159,7 +155,7 @@ DB Promiseの失敗は`Effect.tryPromise`で捕捉し、外部contractのtyped e
 
 1. `shared/api/index.ts`の`AppApi`へAPI groupを追加
 2. `server/handler.ts`へhandler Layerを追加し、factoryが受け取るservice Layerの要件を拡張
-3. `server/index.ts`でservice Live Layerへ`DatabaseLive`を供給
+3. `server/runtime.ts`でservice Live Layerへ`DatabaseLive`と`CloudflareDatabaseTracing`を供給し、API handler間で同じLayerとmemo mapを使う
 
 browserはserver型をimportせず、`src/lib/api-client.ts`の`HttpApiClient`からgroup endpointを呼び出す。
 
@@ -181,7 +177,7 @@ await Effect.runPromise(
 ## Generator
 
 ```bash
-bun run generate:module
+pnpm run generate:module
 ```
 
 module名を入力すると次を生成する。
@@ -193,4 +189,4 @@ server/modules/{name}/service.ts
 server/modules/{name}/service.test.ts
 ```
 
-生成後はDB schemaを追加し、上記の3箇所へmoduleを登録してから、migration、test、lintを実行する。
+生成後はDBスキーマを追加し、上記の3箇所へmoduleを登録する。`pnpm run db:generate`でSQLを生成して内容を確認し、`pnpm run db:migrate`でローカルDBへ適用する。その後、format、quality、buildを実行する。既存DBを引き継ぐ場合は[マイグレーション手順](../../docs/database-migrations.md)を確認する。

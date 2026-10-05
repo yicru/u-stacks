@@ -1,5 +1,5 @@
 import { Effect, Layer, Schema } from 'effect'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vite-plus/test'
 import {
   TaskService,
   type TaskServiceShape,
@@ -11,6 +11,7 @@ import {
 } from '@shared/api/errors'
 import { TaskListResponse } from '@shared/api/task'
 import { makeApiHandler } from './handler'
+import type { ApiRequestMetrics } from './http-api-handler'
 
 const task = {
   id: 'task_1',
@@ -20,7 +21,7 @@ const task = {
   updatedAt: new Date('2026-07-28T00:00:00.000Z'),
 }
 
-const TaskServiceTest = Layer.succeed(TaskService, {
+const taskServiceTest = {
   list: ({ page, perPage }) =>
     Effect.succeed({
       data: [task],
@@ -39,15 +40,27 @@ const TaskServiceTest = Layer.succeed(TaskService, {
     id === task.id
       ? Effect.succeed({ success: true as const })
       : Effect.fail(NotFoundError.makeNotFound(`Task with id ${id} not found`)),
-} satisfies TaskServiceShape)
+} satisfies TaskServiceShape
 
-const TaskServiceFailure = Layer.succeed(TaskService, {
+const TaskServiceTest = Layer.succeed(TaskService, taskServiceTest)
+
+const taskServiceFailure = {
   list: () => Effect.fail(InternalError.makeInternal()),
   get: () => Effect.fail(InternalError.makeInternal()),
   create: () => Effect.fail(InternalError.makeInternal()),
   update: () => Effect.fail(InternalError.makeInternal()),
   remove: () => Effect.fail(InternalError.makeInternal()),
-} satisfies TaskServiceShape)
+} satisfies TaskServiceShape
+
+const TaskServiceFailure = Layer.succeed(TaskService, taskServiceFailure)
+
+function makeGate() {
+  let resolve = () => {}
+  const promise = new Promise<void>((complete) => {
+    resolve = () => complete()
+  })
+  return { promise, resolve }
+}
 
 describe('Effect API handler', () => {
   const { handler, dispose } = makeApiHandler(TaskServiceTest)
@@ -182,5 +195,110 @@ describe('Effect API handler', () => {
       message: 'Internal Server Error',
     })
     await failureServer.dispose()
+  })
+
+  it('isolates overlapping request metrics and omits IDs and query values', async () => {
+    const started = makeGate()
+    const release = makeGate()
+    const metrics: ApiRequestMetrics[] = []
+    const server = makeApiHandler(
+      Layer.succeed(TaskService, {
+        ...taskServiceTest,
+        get: () =>
+          Effect.promise(async () => {
+            started.resolve()
+            await release.promise
+            return { data: task }
+          }),
+      }),
+      { onRequest: (metric) => metrics.push(metric) },
+    )
+    try {
+      const slow = server.handler(
+        new Request(
+          'http://localhost/api/tasks/private-task-id?token=private-query-value',
+        ),
+      )
+      await started.promise
+      await server.handler(new Request('http://localhost/api/health-check'))
+      await server.handler(new Request('http://localhost/api/private-path'))
+      release.resolve()
+      await slow
+
+      expect(
+        metrics.map(({ route, status, outcome }) => ({
+          route,
+          status,
+          outcome,
+        })),
+      ).toEqual([
+        { route: '/api/health-check', status: 200, outcome: 'success' },
+        { route: 'unmatched', status: 404, outcome: 'client_error' },
+        { route: '/api/tasks/:id', status: 200, outcome: 'success' },
+      ])
+      expect(
+        metrics.every(
+          ({ durationMs }) => Number.isFinite(durationMs) && durationMs >= 0,
+        ),
+      ).toBe(true)
+      expect(JSON.stringify(metrics)).not.toMatch(/private-/)
+    } finally {
+      release.resolve()
+      await server.dispose()
+    }
+  })
+
+  it('records aborted requests separately from server failures', async () => {
+    const started = makeGate()
+    const metrics: ApiRequestMetrics[] = []
+    const server = makeApiHandler(
+      Layer.succeed(TaskService, {
+        ...taskServiceFailure,
+        list: () =>
+          Effect.sync(() => started.resolve()).pipe(
+            Effect.andThen(Effect.never),
+          ),
+      }),
+      { onRequest: (metric) => metrics.push(metric) },
+    )
+    try {
+      const controller = new AbortController()
+      const request = server.handler(
+        new Request('http://localhost/api/tasks', {
+          signal: controller.signal,
+        }),
+      )
+      await started.promise
+      controller.abort()
+      await request.catch(() => undefined)
+
+      await server.handler(new Request('http://localhost/api/tasks/task_1'))
+      expect(metrics.map(({ route, outcome }) => ({ route, outcome }))).toEqual(
+        [
+          { route: '/api/tasks', outcome: 'aborted' },
+          { route: '/api/tasks/:id', outcome: 'server_error' },
+        ],
+      )
+      expect(metrics[1]?.status).toBe(500)
+    } finally {
+      await server.dispose()
+    }
+  })
+
+  it('preserves HTTP responses when the metrics sink throws', async () => {
+    const server = makeApiHandler(TaskServiceTest, {
+      onRequest: () => {
+        throw new Error('Metrics unavailable')
+      },
+    })
+    try {
+      const response = await server.handler(
+        new Request('http://localhost/api/health-check'),
+      )
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ message: 'ok' })
+    } finally {
+      await server.dispose()
+    }
   })
 })

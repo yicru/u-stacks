@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import {
   chmod,
@@ -12,10 +12,10 @@ import {
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vite-plus/test'
 
 const ROOT = resolve(import.meta.dirname, '..')
-const BUN = execFileSync('which', ['bun'], { encoding: 'utf-8' }).trim()
+const NODE = process.execPath
 const temporaryDirectories: string[] = []
 
 afterEach(async () => {
@@ -35,7 +35,7 @@ describe('local development', () => {
     const databasePath = join(directory, 'dev.db')
     const port = await findAvailablePort()
 
-    const child = spawn(BUN, ['scripts/dev.ts'], {
+    const child = spawn(NODE, ['scripts/dev.ts'], {
       cwd: ROOT,
       env: {
         ...process.env,
@@ -79,7 +79,7 @@ describe('local development', () => {
     const address = occupiedServer.address()
     const port = typeof address === 'object' && address ? address.port : 0
 
-    const child = spawn(BUN, ['scripts/dev.ts'], {
+    const child = spawn(NODE, ['scripts/dev.ts'], {
       cwd: ROOT,
       env: {
         ...process.env,
@@ -114,7 +114,7 @@ describe('local development', () => {
     const databasePath = join(directory, 'dev.db')
     const port = await findAvailablePort()
 
-    const child = spawn(BUN, ['scripts/dev.ts', 'preview'], {
+    const child = spawn(NODE, ['scripts/dev.ts', 'preview'], {
       cwd: runtimeRoot,
       env: {
         ...process.env,
@@ -134,7 +134,7 @@ describe('local development', () => {
 
     expect(Buffer.concat(stderr).toString()).toBe('')
     expect(exitCode).toBe(0)
-    expect(processLog).toContain('bun run build')
+    expect(processLog).toContain('pnpm run build')
     expect(processLog).toContain('vp preview')
     expect(processLog).not.toContain('portless')
     expect(processLog).toContain(`database http://127.0.0.1:${port}`)
@@ -153,7 +153,7 @@ describe('local development', () => {
     const { binDirectory, logPath } = await createFakeCommands(directory)
     const databasePath = join(directory, 'dev.db')
 
-    const child = spawn(BUN, ['scripts/dev.ts'], {
+    const child = spawn(NODE, ['scripts/dev.ts'], {
       cwd: ROOT,
       env: {
         ...process.env,
@@ -185,7 +185,7 @@ describe('local development', () => {
     const databasePath = join(directory, 'dev.db')
     const port = await findAvailablePort()
 
-    const child = spawn(BUN, ['scripts/dev.ts'], {
+    const child = spawn(NODE, ['scripts/dev.ts'], {
       cwd: ROOT,
       env: {
         ...process.env,
@@ -221,7 +221,7 @@ describe('local development', () => {
     const databasePath = join(directory, 'dev.db')
     const port = await findAvailablePort()
 
-    const child = spawn(BUN, ['scripts/dev.ts'], {
+    const child = spawn(NODE, ['scripts/dev.ts'], {
       cwd: ROOT,
       env: {
         ...process.env,
@@ -255,7 +255,7 @@ describe('local development', () => {
       includeTurso: false,
     })
     const startedAt = Date.now()
-    const child = spawn(BUN, ['scripts/dev.ts'], {
+    const child = spawn(NODE, ['scripts/dev.ts'], {
       cwd: ROOT,
       env: {
         ...process.env,
@@ -341,15 +341,15 @@ setTimeout(() => process.exit(0), Number(process.env.SHADOW_DEV_TEST_APP_EXIT_AF
 `,
   )
   await writeExecutable(
-    join(binDirectory, 'bun'),
+    join(binDirectory, 'pnpm'),
     `#!/usr/bin/env node
 const fs = require('node:fs')
 const path = require('node:path')
-fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`bun \${process.argv.slice(2).join(' ')}\\n\`)
+fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`pnpm \${process.argv.slice(2).join(' ')}\\n\`)
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`database \${process.env.TURSO_DATABASE_URL}\\n\`)
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`local \${process.env.SHADOW_LOCAL_TURSO_URL}\\n\`)
 if (process.env.SHADOW_DEV_TEST_CREATE_PREVIEW_ENV) {
-  const previewEnvPath = path.resolve('dist/server/.dev.vars')
+  const previewEnvPath = path.resolve('.cloudflare/output/v0/workers/default/.dev.vars')
   fs.mkdirSync(path.dirname(previewEnvPath), { recursive: true })
   fs.writeFileSync(previewEnvPath, "TURSO_DATABASE_URL='http://127.0.0.1:8080'\\nTURSO_AUTH_TOKEN=''\\nCUSTOM_VALUE='keep'\\n")
 }
@@ -363,7 +363,7 @@ const path = require('node:path')
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`vp \${process.argv.slice(2).join(' ')}\\n\`)
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`database \${process.env.TURSO_DATABASE_URL}\\n\`)
 fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`local \${process.env.SHADOW_LOCAL_TURSO_URL}\\n\`)
-const previewEnvPath = path.resolve('dist/server/.dev.vars')
+const previewEnvPath = path.resolve('.cloudflare/output/v0/workers/default/.dev.vars')
 if (fs.existsSync(previewEnvPath)) {
   fs.appendFileSync(process.env.SHADOW_DEV_TEST_LOG, \`preview-env \${fs.readFileSync(previewEnvPath, 'utf-8')}\`)
 }

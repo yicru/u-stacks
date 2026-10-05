@@ -21,7 +21,7 @@ const steps = [
   },
   {
     name: 'Install packages',
-    command: 'bun',
+    command: 'pnpm',
     args: ['install', '--frozen-lockfile'],
     cwd: appRoot,
   },

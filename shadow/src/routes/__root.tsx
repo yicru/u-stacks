@@ -3,10 +3,12 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import appCss from '../styles.css?url'
+import interLatinFont from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
 import { ThemeProvider } from 'next-themes'
-import { Toaster } from '@/components/ui/sonner'
+import { Toaster } from '@/components/ui/toast'
 
 export const Route = createRootRoute({
+  ssr: false,
   head: () => ({
     meta: [
       {
@@ -17,10 +19,21 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
+        name: 'robots',
+        content: 'noindex',
+      },
+      {
         title: 'shadow',
       },
     ],
     links: [
+      {
+        rel: 'preload',
+        href: interLatinFont,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous',
+      },
       {
         rel: 'stylesheet',
         href: appCss,
