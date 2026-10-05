@@ -8,6 +8,14 @@ Setup prints the Turso group table, including locations. Select a Japan group. W
 
 See [Workers placement](https://developers.cloudflare.com/workers/configuration/placement/) and [Turso regions](https://turso.tech/blog/turso-cloud-new-regions).
 
+## Worker build
+
+`vite.config.ts` enables Oxc minification only for the `ssr` build environment. This reduces Worker output without changing development transforms or browser asset settings. Oxc is included in Vite, so no additional minifier dependency is required.
+
+A local comparison on 2026-10-05 used the same source and dependencies, changing only this build setting. Across the 11 Worker JavaScript files, output decreased from 2,667,240 to 985,096 bytes (63.1%). The sum of individually gzipped files at compression level 6 decreased from 600,051 to 309,387 bytes (48.4%). All 143 browser asset files, including fonts, had identical paths and SHA-256 hashes.
+
+The minified build passed local Worker preview checks for SSR, task CRUD, invalid input (400), and missing tasks (404). Bundle size is not a startup-time measurement; compare cold and warm production requests in Cloudflare Observability before claiming a latency improvement. See [Vite build minification](https://vite.dev/config/build-options#build-minify).
+
 ## Cloudflare Observability
 
 Workers Logs and Traces are enabled. Traces sample 1% of requests. Cloudflare automatically traces outbound fetches, including libSQL HTTP requests; no additional observability SDK or export service is required.

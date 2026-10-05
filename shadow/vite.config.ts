@@ -32,6 +32,13 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  environments: {
+    ssr: {
+      build: {
+        minify: 'oxc',
+      },
+    },
+  },
   lint: {
     jsPlugins: ['@shadcn/lint'],
     rules: {
