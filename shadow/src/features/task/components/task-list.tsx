@@ -1,7 +1,7 @@
 import { Effect } from 'effect'
 import { useRouter } from '@tanstack/react-router'
 import { useTransition } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/components/ui/toast'
 import { cva } from 'class-variance-authority'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon, TaskDone01Icon } from '@hugeicons/core-free-icons'
@@ -46,10 +46,10 @@ function useTaskActions() {
         await operation()
         router.invalidate()
         if (messages.success) {
-          toast.success(messages.success)
+          toast.add({ title: messages.success, type: 'success' })
         }
       } catch {
-        toast.error(messages.error)
+        toast.add({ title: messages.error, type: 'error' })
       }
     })
   }

@@ -4,6 +4,8 @@
 @import '@fontsource-variable/noto-sans-jp';
 @import '@fontsource-variable/inter';
 
+@source not '../.agents';
+
 @custom-variant dark (&:is(.dark *));
 
 :root {

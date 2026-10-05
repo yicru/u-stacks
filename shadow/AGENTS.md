@@ -45,15 +45,15 @@ shadow/
 
 ## WHERE TO LOOK
 
-| Task                | Location                               | Notes                              |
-| ------------------- | -------------------------------------- | ---------------------------------- |
-| Add page            | `src/routes/`                          | TanStack Router file-based routing |
-| Define API contract | `shared/api/`                          | Effect Schema and HttpApi groups   |
-| Implement endpoint  | `server/modules/`                      | Handler and service Layers         |
-| Compose runtime     | `server/handler.ts`, `server/index.ts` | Web handler and production Layers  |
-| Add UI component    | `src/components/ui/`                   | `bunx shadcn add <name>`           |
-| DB schema           | `server/db/schema.ts`                  | Drizzle SQLite dialect             |
-| Module rules        | `server/modules/README.md`             | Registration and testing workflow  |
+| Task                | Location                               | Notes                                 |
+| ------------------- | -------------------------------------- | ------------------------------------- |
+| Add page            | `src/routes/`                          | TanStack Router file-based routing    |
+| Define API contract | `shared/api/`                          | Effect Schema and HttpApi groups      |
+| Implement endpoint  | `server/modules/`                      | Handler and service Layers            |
+| Compose runtime     | `server/handler.ts`, `server/index.ts` | Web handler and production Layers     |
+| Add UI component    | `src/components/ui/`                   | `bunx --bun shadcn@latest add <name>` |
+| DB schema           | `server/db/schema.ts`                  | Drizzle SQLite dialect                |
+| Module rules        | `server/modules/README.md`             | Registration and testing workflow     |
 
 ## CONVENTIONS
 
@@ -78,12 +78,20 @@ shadow/
 - Toolchain: Vite+ 1.0 with TypeScript 7, oxlint, oxfmt, React Doctor, and Fallow
 - Tests: Vitest 5 via `vite-plus/test` beside contracts, services, handler, and client
 - Icons: `@hugeicons/react` and `@hugeicons/core-free-icons`
+- Class names: `cn` package, re-exported by `src/lib/utils.ts`
+- Notifications: `toast.add()` from `src/components/ui/toast.tsx`; mount `Toaster` once in the root layout
 - Date display: `src/lib/date.ts` `formatDateTime()`
 - Local database: `turso dev` backed by `.turso/dev.db`, preferring `127.0.0.1:8080` and falling back to a free port
 
 ## EFFECT DOCUMENTATION
 
 Before writing Effect code, read `node_modules/effect/AGENTS.md` completely and follow its links when required. For APIs it does not cover, inspect `node_modules/effect/src` and the installed package's exports and types. HTTP modules retain `@stability unstable` annotations; use the installed version's documentation.
+
+## SHADCN DOCUMENTATION
+
+Before working on shadcn UI, read `.agents/skills/shadcn/SKILL.md` and the relevant linked rules. This project skill is stored inside the template so a standalone `degit` checkout keeps its instructions and references. Run the CLI with `bunx --bun shadcn@latest` from the application directory; this template uses Base UI and Hugeicons.
+
+`@shadcn/lint` is registered in `vite.config.ts` through `lint.jsPlugins`. Its design-system rules are not enabled; configure `lint.rules` explicitly when adopting a rule policy. Preserve the existing component-source ignores.
 
 ## MODULE WORKFLOW
 
@@ -137,6 +145,8 @@ Keep `vp` for dev/build/preview: cf's framework detection delegates to `bunx vit
 Keep `vite-plus` and the `vite` alias/override on the same exact release. Use `vite-plus/test` in tests and `.scaffdog/module.md`. The esbuild override removes the vulnerable older version used by Drizzle's config loader; validate isolated schema generation when changing it.
 
 Fallow entry points include Cloudflare configuration and T3 worktree helpers that are loaded by filename or subprocess. Its Portless exclusion reflects an actual CLI dependency in `scripts/dev.ts`. Full `fallow` analysis remains part of `quality`; the separate `fallow:audit` command uses the configured changeset gate.
+
+The Fallow dependency exclusions cover component-library imports in the ignored UI sources, including `cn` and `@shadcn/react`. `@shadcn/lint` is loaded by its package name in `lint.jsPlugins`, rather than a static import. Vendored skill files are excluded from source-quality checks, formatting, and Tailwind class scanning.
 
 The README records the unpatched braces and node-forge advisories and their development-only consumers. Keep `bun audit` findings visible and recheck upstream releases instead of suppressing them.
 

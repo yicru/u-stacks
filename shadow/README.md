@@ -14,6 +14,8 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 - Drizzle ORM with Turso / libSQL
 - Cloudflare Workers deployment via the cf CLI (beta)
 - shadcn/ui on the Base UI registry
+- Questionnaire and chat primitives, with Base UI Toast notifications
+- Official shadcn project skill included in `.agents/skills/shadcn`
 - Tailwind CSS v4
 - Vitest integration, service, contract, and client tests
 - React Doctor diagnostics and Fallow structural quality gates
@@ -204,6 +206,18 @@ Do not create a broad API token during initial setup. If CI or release automatio
 Prepare `.dev.vars.production` before deploying or running `bun run db:migrate:prod`. Production migrations use `drizzle.production.config.ts`; local database commands never read production Turso credentials. `.dev.vars.production` is the only file uploaded with `--secrets-file`; `.cloudflare.json` is never uploaded as a Worker secret.
 
 ## Dependency maintenance
+
+### shadcn UI
+
+The template includes Questionnaire, MessageScroller, Message, Bubble, Attachment, Marker, and Toast from the official Base UI registry. Notifications use `toast.add({ title, type })` from `@/components/ui/toast`; the root layout mounts `Toaster`. Class names use the `cn` package, also re-exported from `@/lib/utils` for existing components.
+
+The official [shadcn skill](https://ui.shadcn.com/docs/skills) is vendored as real files under `.agents/skills/shadcn`, including its referenced rules and assets. A `degit yicru/u-stacks/shadow my-app` checkout therefore includes the project skill without a global installation or external symlink. Start a new agent session after cloning or updating the skill so it can be discovered; `AGENTS.md` also points agents to it.
+
+Vendored skill examples are excluded from lint, formatting, Fallow, and Tailwind class scanning, so instructions do not add application CSS or source-quality findings.
+
+`@shadcn/lint` is registered in Vite+'s Oxlint configuration through `lint.jsPlugins` in `vite.config.ts`. Following the official [setup instructions](https://github.com/shadcn-ui/lint/blob/main/SETUP.md), no new design-system rules are enabled during installation. Add selected `shadcn/*` entries to `lint.rules` when defining that policy. Existing lint scripts and component-source ignores remain in place.
+
+### Dependency checks
 
 ```bash
 bun outdated

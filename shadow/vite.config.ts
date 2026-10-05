@@ -33,8 +33,10 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   lint: {
+    jsPlugins: ['@shadcn/lint'],
     ignorePatterns: [
       'src/components/ui',
+      '.agents/skills',
       'node_modules',
       '.wrangler',
       '.cloudflare',
@@ -51,6 +53,7 @@ export default defineConfig({
     trailingComma: 'all',
     ignorePatterns: [
       'src/components/ui',
+      '.agents/skills',
       'src/routeTree.gen.ts',
       'node_modules',
       '.wrangler',

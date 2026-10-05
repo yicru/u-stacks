@@ -13,21 +13,23 @@
     "src/lib/utils.ts",
     "src/routeTree.gen.ts",
     ".cloudflare/**",
+    ".agents/skills/**",
     ".scaffdog/**"
   ],
   "ignoreDependencies": [
     "@base-ui/react",
     "@daypicker/react",
+    "@shadcn/lint",
+    "@shadcn/react",
     "class-variance-authority",
-    "clsx",
     "cmdk",
+    "cn",
     "embla-carousel-react",
     "input-otp",
     "portless",
     "react-resizable-panels",
     "recharts",
     "shadcn",
-    "tailwind-merge",
     "vaul"
   ],
   "audit": {
