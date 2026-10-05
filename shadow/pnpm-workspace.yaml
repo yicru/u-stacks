@@ -26,7 +26,10 @@ trustPolicyExclude:
 
 minimumReleaseAgeExclude:
   - data-urls@8.0.0
+  - effect@4.0.1
   - hono@4.13.13
   - jsdom@30.1.2
+  - oxlint-plugin-react-doctor@0.9.16
+  - react-doctor@0.9.16
   - tr46@7.0.0
   - whatwg-url@17.2.0

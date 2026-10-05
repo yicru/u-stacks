@@ -48,7 +48,7 @@ u-stacks/
 ### Tooling
 
 - Lint/format: Biome (tails, sonic) / oxlint + oxfmt (shadow)
-- No test framework except shadow (Vitest + Testing Library)
+- No test framework except shadow (Vitest via Vite+)
 - Each stack has own `package.json`, config files, `tsconfig.json`
 
 ## STACK COMPARISON
