@@ -1,7 +1,7 @@
 import { tracing } from 'cloudflare:workers'
 import { Layer } from 'effect'
 import { DatabaseTracing } from '@server/db/tracing'
-import type { ApiRequestMetrics } from './handler'
+import type { ApiRequestMetrics } from './http-api-handler'
 
 export const CloudflareDatabaseTracing = Layer.succeed(DatabaseTracing, {
   query: <A>(name: string, operation: () => Promise<A>) =>

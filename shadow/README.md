@@ -58,6 +58,10 @@ Open `https://my-app.localhost:1355` after the dev server starts. The template u
 
 Set `PORTLESS_PORT` to override the proxy port. For example, `PORTLESS_PORT=443 pnpm run dev` uses a URL without a port number, but port `443` must be available and may require `sudo` on macOS or Linux.
 
+## Reference Patterns
+
+Open `/reference` for disposable examples of cursor pagination, independent reads with bounded concurrency, streamed secondary data, bulk ID lookup, and selective refresh after mutations. The examples reuse the task database and existing dependencies. [Reference patterns](docs/reference-patterns.md) describes the tradeoffs and the five paths to delete when starting your own application.
+
 ## Setup Flow
 
 `pnpm run setup` updates the app name, prepares Turso, and optionally configures Cloudflare deployment.

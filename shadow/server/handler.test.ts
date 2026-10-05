@@ -10,7 +10,8 @@ import {
   ValidationError,
 } from '@shared/api/errors'
 import { TaskListResponse } from '@shared/api/task'
-import { makeApiHandler, type ApiRequestMetrics } from './handler'
+import { makeApiHandler } from './handler'
+import type { ApiRequestMetrics } from './http-api-handler'
 
 const task = {
   id: 'task_1',
