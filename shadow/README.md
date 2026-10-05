@@ -21,19 +21,19 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 
 ## Tech Stack
 
-| Layer         | Technology                                              |
-| ------------- | ------------------------------------------------------- |
-| App framework | TanStack Start                                          |
-| API           | Effect HTTP API + Effect Schema                         |
-| Database      | Turso + Drizzle ORM                                     |
-| Runtime       | Cloudflare Workers                                      |
-| UI            | React 19 + shadcn/ui (Base UI)                          |
-| Styling       | Tailwind CSS v4                                         |
-| Tooling       | Bun, Vite+, oxlint, oxfmt, Vitest, React Doctor, Fallow |
+| Layer         | Technology                                                         |
+| ------------- | ------------------------------------------------------------------ |
+| App framework | TanStack Start                                                     |
+| API           | Effect HTTP API + Effect Schema                                    |
+| Database      | Turso + Drizzle ORM                                                |
+| Runtime       | Cloudflare Workers                                                 |
+| UI            | React 19 + shadcn/ui (Base UI)                                     |
+| Styling       | Tailwind CSS v4                                                    |
+| Tooling       | Bun 1.4.2, Vite+ 1.0, TypeScript 7, Vitest 5, React Doctor, Fallow |
 
 ## Quick Start
 
-Use Node.js 22.18 or later and Bun. cf loads TypeScript configuration with Node.js; dependency management and project scripts use Bun.
+Use Bun 1.4.2 or later and a supported Node.js version: 22.22.2 or later in the 22.x series, 24.15.0 or later in the 24.x series, or 26.x and later. These versions satisfy Vite+ and jsdom as well as cf's configuration loader. Dependency management and project scripts use Bun; `packageManager` and Vite+'s `devEngines.packageManager` pin Bun 1.4.2.
 
 ```bash
 brew install tursodatabase/tap/turso
@@ -197,14 +197,35 @@ Vite+ remains the dev, build, and preview runner. cf currently detects this fram
 
 See the official [Wrangler migration guide](https://developers.cloudflare.com/cf/wrangler/migrate/) and [programmatic configuration reference](https://developers.cloudflare.com/cf/projects/cloudflare-config/). cf and Vite plugin v2 are currently beta; this template pins the verified versions.
 
+The Worker uses compatibility date `2026-09-30`, matching the workerd release bundled with the pinned Vite plugin. Node.js compatibility is enabled by that date without an explicit flag. Logs are enabled, and traces sample 1% of requests. Review compatibility changes and verify the local Worker when updating the pinned Cloudflare toolchain.
+
 Do not create a broad API token during initial setup. If CI or release automation is introduced later, create a separate account-scoped token at that point with only the resource write capabilities shown by `plan` plus Workers Scripts write for deployment, and keep it in the automation provider's secret store. The current local wrapper is intentionally named-profile-only; token-based automation should be added as a separate execution mode rather than placed in `.cloudflare.json` or `.dev.vars.production`.
 
 Prepare `.dev.vars.production` before deploying or running `bun run db:migrate:prod`. Production migrations use `drizzle.production.config.ts`; local database commands never read production Turso credentials. `.dev.vars.production` is the only file uploaded with `--secrets-file`; `.cloudflare.json` is never uploaded as a Worker secret.
 
+## Dependency maintenance
+
+```bash
+bun outdated
+bun audit
+bun run quality
+bun run build
+```
+
+Vite+ and its `vite` alias are pinned to the same release. Tests and generated module tests import `vite-plus/test`, so their APIs match the bundled Vitest version. The esbuild override updates the older copy pulled in by Drizzle's config loader; verify `db:generate` alongside the application checks when changing it.
+
+Fallow declares Cloudflare configuration and T3 worktree helper scripts as entry points because the tools load them by filename or subprocess. Portless is retained as the CLI started by `scripts/dev.ts`. `bun run fallow` analyzes the full codebase, including inherited duplication and complexity findings. `bun run fallow:audit -- --base <ref>` applies the configured `new-only` gate to a changeset; it does not replace the full analysis in `quality`.
+
+The current dependency audit also reports two advisories without published fixes:
+
+- [braces stack exhaustion](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm): shadcn and scaffdog use this development dependency for local file patterns. Keep those patterns under developer control.
+- [node-forge signature verification](https://github.com/advisories/GHSA-86w9-cpqp-85rv): dotenvx brings this development dependency for its optional proxy certificate generation. This template uses dotenvx's environment-loading command and does not use its proxy or RSA signature-verification API.
+
+Neither dependency is part of the Worker application. The advisories remain visible in `bun audit`; check for upstream fixes during subsequent updates.
+
 ## Notes
 
 - Package manager: `bun`
-- `@libsql/client` is pinned to `0.17.4`, which uses native `fetch` in Cloudflare Workers
 - `src/` must not import `server/` runtime modules; use the shared contract and `HttpApiClient`
 - The only bridge exception is `src/routes/api/$.ts`, which forwards Web requests to the server handler
 - `.cloudflare/types/index.d.ts` and `src/routeTree.gen.ts` are generated files

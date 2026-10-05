@@ -12,7 +12,7 @@ import {
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vite-plus/test'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const BUN = execFileSync('which', ['bun'], { encoding: 'utf-8' }).trim()

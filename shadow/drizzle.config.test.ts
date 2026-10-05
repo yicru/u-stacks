@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vite-plus/test'
 
 const originalDatabaseUrl = process.env.TURSO_DATABASE_URL
 const originalAuthToken = process.env.TURSO_AUTH_TOKEN

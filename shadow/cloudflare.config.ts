@@ -8,10 +8,12 @@ export default defineConfig(() => ({
   worker: withCloudflareResourceIds(
     {
       name: 'shadow',
-      compatibilityDate: '2025-09-02',
-      compatibilityFlags: ['nodejs_compat'],
+      compatibilityDate: '2026-09-30',
       entrypoint: '@tanstack/react-start/server-entry',
-      observability: { enabled: true },
+      observability: {
+        enabled: true,
+        traces: { enabled: true, headSamplingRate: 0.01 },
+      },
       env: {
         TURSO_DATABASE_URL: bindings.secret(),
         TURSO_AUTH_TOKEN: bindings.secret(),

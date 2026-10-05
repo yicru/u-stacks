@@ -220,8 +220,6 @@ client failureはEffectのtyped errorとして処理し、既存のtoast文言�
 
 frontend form validationがZodを使用しているため、`zod`は残す。
 
-`@libsql/client`は`0.15.15`のpinを維持する。
-
 ## Module generator
 
 scaffdog templateはEffect moduleを生成するように書き換える。

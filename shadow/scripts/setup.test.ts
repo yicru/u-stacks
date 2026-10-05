@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vite-plus/test'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const TEST_EFFECT_VERSION = '4.0.0'

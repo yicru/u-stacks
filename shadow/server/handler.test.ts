@@ -1,5 +1,5 @@
 import { Effect, Layer, Schema } from 'effect'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vite-plus/test'
 import {
   TaskService,
   type TaskServiceShape,

@@ -334,7 +334,7 @@ export const {{ inputs.name | pascal }}HandlersLive =
 
 ```typescript
 import { Effect, Layer } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import {
   {{ inputs.name | pascal }}Service,
   type {{ inputs.name | pascal }}ServiceShape,

@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client'
 import { drizzle } from 'drizzle-orm/libsql'
 import { Effect, Layer } from 'effect'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vite-plus/test'
 import { Database } from '@server/db'
 import * as schema from '@server/db/schema'
 import { TaskService } from './service'

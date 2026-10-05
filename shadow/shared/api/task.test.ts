@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { Task, TaskCreateBody, TaskUpdateBody } from './task'
 
 describe('Task payloads', () => {
