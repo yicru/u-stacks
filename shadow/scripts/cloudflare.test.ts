@@ -337,6 +337,98 @@ describe('Cloudflare command wrapper', () => {
     expect(environment.stderr).toContain('cf uses --mode')
     expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
   })
+
+  test.each([
+    { value: [], message: 'Invalid cloudflare.resources.json.' },
+    {
+      value: { [ACCOUNT_ID]: [] },
+      message: 'Invalid Cloudflare resource account.',
+    },
+    {
+      value: { [ACCOUNT_ID]: { 'test-worker': [] } },
+      message: 'Invalid Cloudflare resource Worker.',
+    },
+    {
+      value: {
+        [ACCOUNT_ID]: { 'test-worker': { CACHE: { type: 'kv', id: '' } } },
+      },
+      message: 'Invalid Cloudflare resource identifier.',
+    },
+  ])(
+    'rejects malformed resource identifiers: $message',
+    async ({ value, message }) => {
+      const directory = await createFixture()
+      await writeFile(
+        join(directory, 'cloudflare.resources.json'),
+        JSON.stringify(value),
+      )
+      const { exitCode, stderr } = await runCommand(directory, ['plan'])
+      expect(exitCode).toBe(1)
+      expect(stderr).toContain(message)
+      expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
+    },
+  )
+
+  test('rejects a saved resource whose type differs from the configured binding', async () => {
+    const directory = await createFixture()
+    await writeConfig(directory, { CACHE: { type: 'kv' } })
+    await writeFile(
+      join(directory, 'cloudflare.resources.json'),
+      JSON.stringify({
+        [ACCOUNT_ID]: {
+          'test-worker': { CACHE: { type: 'd1', id: 'saved-id' } },
+        },
+      }),
+    )
+    const { exitCode, stderr } = await runCommand(directory, ['plan'])
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain(
+      'Stored Cloudflare resource type differs for CACHE.',
+    )
+    expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
+  })
+
+  test.each([
+    {
+      args: ['plan', '--mode', 'staging', '--mode=production'],
+      message: 'Specify one Cloudflare mode.',
+    },
+    { args: ['plan', '--mode='], message: 'Specify one Cloudflare mode.' },
+    {
+      args: ['plan', '--mode', '--yes'],
+      message: 'Cloudflare mode requires a value.',
+    },
+    {
+      args: ['deploy', '--dry-run=invalid'],
+      message: 'Invalid --dry-run value.',
+    },
+    {
+      args: ['deploy', '--dry-run', 'true', '--no-dry-run'],
+      message: 'Specify --dry-run only once.',
+    },
+    { args: ['plan', '--yes'], message: 'Unsupported project option: --yes' },
+    {
+      args: ['workers', 'versions', 'create'],
+      message: 'validate resource readiness before deploying a build.',
+    },
+    {
+      args: ['workers', 'triggers', 'deploy'],
+      message: 'validate resource readiness before deploying a build.',
+    },
+    {
+      args: ['previews', 'deploy'],
+      message: 'validate resource readiness before deploying a build.',
+    },
+  ])(
+    'rejects invalid or unguarded commands: $args',
+    async ({ args, message }) => {
+      const directory = await createFixture()
+      const { exitCode, stderr } = await runCommand(directory, args)
+      expect(exitCode).toBe(1)
+      expect(stderr).toContain(message)
+      expect(await fileExists(join(directory, 'cf.log'))).toBe(false)
+    },
+  )
 })
 
 type Invocation = {

@@ -88,36 +88,31 @@ function readMode(value: string | undefined): Mode {
 async function startTurso(
   configuredPort: number | undefined,
 ): Promise<{ child: ChildProcess; port: number }> {
-  const initialPort = await selectPort(configuredPort)
-  const attempts = configuredPort ? 1 : 2
-  let lastError: unknown
+  const initial = await startTursoOnPort(await selectPort(configuredPort))
+  if (initial.success) return initial.value
+  if (configuredPort) throw initial.error
+  const retry = await startTursoOnPort(await findAvailablePort())
+  if (!retry.success) throw retry.error
+  return retry.value
+}
 
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const port = attempt === 0 ? initialPort : await findAvailablePort()
-    const child = spawn(
-      'turso',
-      ['dev', '--port', String(port), '--db-file', databasePath],
-      {
-        cwd: ROOT,
-        stdio: 'inherit',
-      },
-    )
-
-    try {
-      await waitForPort(child, port)
-      return { child, port }
-    } catch (error) {
-      lastError = error
-      if (isMissingExecutable(error)) {
-        throw new Error(
-          'Turso CLI is required. Install it before running local development.',
-        )
-      }
-      await stopProcess(child)
-    }
+async function startTursoOnPort(port: number) {
+  const child = spawn(
+    'turso',
+    ['dev', '--port', String(port), '--db-file', databasePath],
+    { cwd: ROOT, stdio: 'inherit' },
+  )
+  try {
+    await waitForPort(child, port)
+    return { success: true as const, value: { child, port } }
+  } catch (error) {
+    if (isMissingExecutable(error))
+      throw new Error(
+        'Turso CLI is required. Install it before running local development.',
+      )
+    await stopProcess(child)
+    return { success: false as const, error }
   }
-
-  throw lastError
 }
 
 function spawnApp(runtimeMode: Mode, env: NodeJS.ProcessEnv): ChildProcess {
@@ -164,39 +159,37 @@ function updatePreviewEnv(port: number): void {
 }
 
 function getDetachedWorktreeName(): string | undefined {
-  const branch = runGit(['rev-parse', '--abbrev-ref', 'HEAD'])
-  if (branch !== 'HEAD') {
-    return undefined
-  }
+  if (runGit(['rev-parse', '--abbrev-ref', 'HEAD']) !== 'HEAD') return undefined
+  const gitDirectory = getLinkedWorktreeDirectory()
+  if (!gitDirectory) return undefined
+  const worktreeId = toHostnamePart(basename(gitDirectory))
+  return worktreeId ? `${getPortlessName()}-${worktreeId}` : undefined
+}
 
+function getLinkedWorktreeDirectory(): string | undefined {
   const gitDirectory = runGit(['rev-parse', '--git-dir'])
   const commonDirectory = runGit(['rev-parse', '--git-common-dir'])
-  if (
-    !gitDirectory ||
-    !commonDirectory ||
-    resolve(ROOT, gitDirectory) === resolve(ROOT, commonDirectory)
-  ) {
+  if (!gitDirectory || !commonDirectory) return undefined
+  if (resolve(ROOT, gitDirectory) === resolve(ROOT, commonDirectory))
     return undefined
-  }
+  return gitDirectory
+}
 
-  const worktreeId = toHostnamePart(basename(gitDirectory))
-  if (!worktreeId) {
-    return undefined
-  }
-
+function getPortlessName(): string {
   const packageJson = JSON.parse(
     readFileSync(resolve(ROOT, 'package.json'), 'utf-8'),
-  ) as {
-    name?: string
-    portless?: string | { name?: string }
-  }
-  const portlessName =
-    typeof packageJson.portless === 'string'
-      ? packageJson.portless
-      : packageJson.portless?.name
-  const baseName = portlessName || packageJson.name || basename(ROOT)
+  ) as { name?: string; portless?: string | { name?: string } }
+  return (
+    getConfiguredPortlessName(packageJson.portless) ||
+    packageJson.name ||
+    basename(ROOT)
+  )
+}
 
-  return `${baseName}-${worktreeId}`
+function getConfiguredPortlessName(
+  value: string | { name?: string } | undefined,
+): string | undefined {
+  return typeof value === 'string' ? value : value?.name
 }
 
 function runGit(args: string[]): string | undefined {
@@ -224,7 +217,7 @@ function readPort(value: string | undefined): number | undefined {
   }
 
   const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65_535) {
+  if (!isValidPort(parsed)) {
     throw new Error(`Invalid TURSO_DEV_PORT: ${value}`)
   }
   return parsed
@@ -256,23 +249,12 @@ async function waitForPort(child: ChildProcess, targetPort: number) {
     spawnError = error
   }
   child.once('error', captureSpawnError)
-
   try {
     while (Date.now() < deadline) {
-      if (spawnError) {
-        throw spawnError
-      }
-      if (child.exitCode !== null || child.signalCode !== null) {
-        throw new Error('Turso dev server exited before it became ready.')
-      }
+      assertTursoRunning(child, spawnError)
       if (await canConnect(targetPort)) {
         await delay(STARTUP_STABILITY_MS)
-        if (spawnError) {
-          throw spawnError
-        }
-        if (child.exitCode !== null || child.signalCode !== null) {
-          throw new Error('Turso dev server exited before it became ready.')
-        }
+        assertTursoRunning(child, spawnError)
         return
       }
       await delay(50)
@@ -280,10 +262,26 @@ async function waitForPort(child: ChildProcess, targetPort: number) {
   } finally {
     child.off('error', captureSpawnError)
   }
-
   throw new Error(
     `Turso dev server did not become ready on port ${targetPort}.`,
   )
+}
+
+function assertTursoRunning(
+  child: ChildProcess,
+  spawnError: Error | undefined,
+): void {
+  if (spawnError) throw spawnError
+  if (!isRunning(child))
+    throw new Error('Turso dev server exited before it became ready.')
+}
+
+function isRunning(child: ChildProcess): boolean {
+  return child.exitCode === null && child.signalCode === null
+}
+
+function isValidPort(port: number): boolean {
+  return Number.isInteger(port) && port >= 1 && port <= 65_535
 }
 
 function isMissingExecutable(error: unknown): boolean {
@@ -354,11 +352,8 @@ function stopForSignal(signal: NodeJS.Signals): void {
 }
 
 function stopChildren(signal: NodeJS.Signals): void {
-  if (app?.exitCode === null && app.signalCode === null) {
-    app.kill(signal)
-  }
-  if (turso?.exitCode === null && turso.signalCode === null) {
-    turso.kill(signal)
+  for (const child of [app, turso]) {
+    if (child && isRunning(child)) child.kill(signal)
   }
 }
 

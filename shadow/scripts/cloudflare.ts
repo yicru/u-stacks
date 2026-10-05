@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { loadAndParseConfig } from '@cloudflare/config'
@@ -30,11 +30,45 @@ try {
 }
 
 async function main(): Promise<number> {
+  assertCommandEnvironment()
+  const configuration = readConfiguration()
+  const mode = readMode(args)
+  const worker = await readWorker(configuration, mode)
+  const plan = createCloudflareResourcePlan(worker, mode)
+  const command = args[0]
+  if (['plan', 'status', 'apply'].includes(command)) {
+    return runProjectCommand(command, configuration, plan)
+  }
+  if (command === 'deploy') return deploy(configuration, plan)
+  assertGuardedDeploymentCommand()
+  return runCf(args, configuration, mode, true).status
+}
+
+function assertCommandEnvironment(): void {
   if (!args.length)
     throw new Error(
       'Usage: bun run cloudflare -- <status|plan|apply|cf command>',
     )
-  if (args.some((arg) => arg === '--profile' || arg.startsWith('--profile='))) {
+  assertPinnedCredentials()
+  const unsupportedOptions = [
+    {
+      matches: (arg: string) =>
+        /^--(?:x-|experimental-)(?:provision|auto-create)(?:=|$)/.test(arg),
+      message:
+        'Automatic provisioning bypasses the reviewed resource plan. Use cloudflare plan and cloudflare apply instead.',
+    },
+    {
+      matches: (arg: string) => arg === '-e' || arg.split('=')[0] === '--env',
+      message: 'cf uses --mode instead of Wrangler --env.',
+    },
+  ]
+  for (const option of unsupportedOptions) {
+    if (args.some(option.matches)) throw new Error(option.message)
+  }
+}
+
+function assertPinnedCredentials(): void {
+  if (args.some((arg) => arg.split('=')[0] === '--profile')) {
     throw new Error('The Cloudflare profile is pinned by .cloudflare.json.')
   }
   const credential = findCloudflareCredentialEnvironmentVariable(process.env)
@@ -42,24 +76,12 @@ async function main(): Promise<number> {
     throw new Error(
       `${credential} overrides named Cloudflare profiles. Unset it before using this command.`,
     )
-  if (
-    args.some((arg) =>
-      /^--(?:x-|experimental-)(?:provision|auto-create)(?:=|$)/.test(arg),
-    )
-  ) {
-    throw new Error(
-      'Automatic provisioning bypasses the reviewed resource plan. Use cloudflare plan and cloudflare apply instead.',
-    )
-  }
-  if (
-    args.some(
-      (arg) => arg === '--env' || arg === '-e' || arg.startsWith('--env='),
-    )
-  ) {
-    throw new Error('cf uses --mode instead of Wrangler --env.')
-  }
-  const configuration = readConfiguration()
-  const mode = readMode(args)
+}
+
+async function readWorker(
+  configuration: CloudflareConfiguration,
+  mode: string,
+) {
   const { result } = await loadAndParseConfig(
     join(ROOT, 'cloudflare.config.ts'),
     { mode, isPreview: false },
@@ -73,79 +95,126 @@ async function main(): Promise<number> {
   }
   if (!result.data.worker)
     throw new Error('cloudflare.config.ts must define a Worker.')
-  const plan = createCloudflareResourcePlan(result.data.worker, mode)
-  const command = args[0]
-  if (command === 'plan' || command === 'status' || command === 'apply') {
-    assertProjectOptions(args.slice(1), command === 'apply')
-    printPlan(configuration, plan)
-    if (command === 'plan') return plan.blockers.length ? 1 : 0
-    if (command === 'status') {
-      assertAuthentication(configuration, mode)
-      console.log('- Authentication: ready')
-      console.log(`- Pending creates: ${plan.actions.length}`)
-      return isReady(plan) ? 0 : 1
-    }
-    return await apply(configuration, plan)
-  }
-  if (command === 'deploy') {
-    assertReady(plan)
-    const prebuilt = readBooleanFlag(args, '--prebuilt')
-    const dryRun = readBooleanFlag(args, '--dry-run')
-    if (!prebuilt) {
-      const build = spawnSync('bun', ['run', 'build', '--mode', mode], {
-        cwd: ROOT,
-        stdio: 'inherit',
-      })
-      if (build.status !== 0) throw new Error('Cloudflare build failed.')
-    }
-    const output = await readBuildOutput(ROOT)
-    if (
-      output.rootConfig.accountId !== configuration.accountId ||
-      output.rootConfig.buildContext?.mode !== mode ||
-      output.workers.default.config.name !== plan.workerName
-    ) {
-      throw new Error(
-        'Build Output account, Worker, or mode differs from the pinned deployment target. Rebuild before deploying.',
-      )
-    }
-    const builtPlans = Object.values(output.workers).map((worker) =>
-      createCloudflareResourcePlan(worker.config, mode),
+  return result.data.worker
+}
+
+function runProjectCommand(
+  command: string,
+  configuration: CloudflareConfiguration,
+  plan: CloudflareResourcePlan,
+): number | Promise<number> {
+  assertProjectOptions(args.slice(1), command === 'apply')
+  printPlan(configuration, plan)
+  if (command === 'plan') return plan.blockers.length ? 1 : 0
+  if (command !== 'status') return apply(configuration, plan)
+  assertAuthentication(configuration, plan.mode)
+  console.log('- Authentication: ready')
+  console.log(`- Pending creates: ${plan.actions.length}`)
+  return Number(!isReady(plan))
+}
+
+async function deploy(
+  configuration: CloudflareConfiguration,
+  plan: CloudflareResourcePlan,
+): Promise<number> {
+  assertReady(plan)
+  const prebuilt = readBooleanFlag(args, '--prebuilt')
+  const dryRun = readBooleanFlag(args, '--dry-run')
+  if (!prebuilt) build(plan.mode)
+  const builtPlans = await readBuiltPlans(configuration, plan)
+  if (!dryRun) assertDeploymentResources(configuration, builtPlans)
+  return runCf(
+    [
+      ...withoutBooleanFlags(args, ['--prebuilt', '--dry-run']),
+      '--prebuilt',
+      ...(dryRun ? ['--dry-run'] : []),
+    ],
+    configuration,
+    plan.mode,
+    true,
+  ).status
+}
+
+function build(mode: string): void {
+  const result = spawnSync('bun', ['run', 'build', '--mode', mode], {
+    cwd: ROOT,
+    stdio: 'inherit',
+  })
+  if (result.status !== 0) throw new Error('Cloudflare build failed.')
+}
+
+async function readBuiltPlans(
+  configuration: CloudflareConfiguration,
+  plan: CloudflareResourcePlan,
+): Promise<CloudflareResourcePlan[]> {
+  const output = await readBuildOutput(ROOT)
+  const actual = [
+    output.rootConfig.accountId,
+    output.rootConfig.buildContext?.mode,
+    output.workers.default.config.name,
+  ]
+  const expected = [configuration.accountId, plan.mode, plan.workerName]
+  if (actual.some((value, index) => value !== expected[index])) {
+    throw new Error(
+      'Build Output account, Worker, or mode differs from the pinned deployment target. Rebuild before deploying.',
     )
-    for (const builtPlan of builtPlans) assertReady(builtPlan)
-    if (!dryRun) {
-      assertAuthentication(configuration, mode)
-      for (const builtPlan of builtPlans)
-        assertExistingResources(configuration, builtPlan)
-    }
-    return runCf(
-      [
-        ...withoutBooleanFlags(args, ['--prebuilt', '--dry-run']),
-        '--prebuilt',
-        ...(dryRun ? ['--dry-run'] : []),
-      ],
-      configuration,
-      mode,
-      true,
-    ).status
   }
+  const builtPlans = Object.values(output.workers).map((worker) =>
+    createCloudflareResourcePlan(worker.config, plan.mode),
+  )
+  for (const builtPlan of builtPlans) assertReady(builtPlan)
+  return builtPlans
+}
+
+function assertDeploymentResources(
+  configuration: CloudflareConfiguration,
+  plans: CloudflareResourcePlan[],
+): void {
+  assertAuthentication(configuration, plans[0].mode)
+  for (const plan of plans) assertExistingResources(configuration, plan)
+}
+
+function assertGuardedDeploymentCommand(): void {
+  const command = args.slice(0, 3).join(' ')
+  const guardedCommands = ['workers versions create', 'workers triggers deploy']
   if (
-    (command === 'workers' &&
-      ((args[1] === 'versions' && args[2] === 'create') ||
-        (args[1] === 'triggers' && args[2] === 'deploy'))) ||
-    (command === 'previews' && args[1] === 'deploy')
+    guardedCommands.includes(command) ||
+    args.slice(0, 2).join(' ') === 'previews deploy'
   ) {
     throw new Error(
       'Use `bun run cloudflare -- deploy` to validate resource readiness before deploying a build.',
     )
   }
-  return runCf(args, configuration, mode, true).status
 }
 
 async function apply(
   configuration: CloudflareConfiguration,
   plan: CloudflareResourcePlan,
 ): Promise<number> {
-  if (!args.includes('--yes') && !args.includes('-y'))
+  assertApplicable(plan)
+  if (!plan.actions.length) return 0
+  assertAuthentication(configuration, plan.mode)
+  for (const action of plan.actions) createResource(configuration, plan, action)
+  const worker = await readUpdatedWorker(plan.mode)
+  assertReady(createCloudflareResourcePlan(worker, plan.mode))
+  console.log(
+    'Cloudflare resources were created and cloudflare.resources.json was updated.',
+  )
+  return 0
+}
+
+async function readUpdatedWorker(mode: string) {
+  const { result } = await loadAndParseConfig(
+    join(ROOT, 'cloudflare.config.ts'),
+    { mode, isPreview: false },
+  )
+  if (!result.success || !result.data.worker)
+    throw new Error('Unable to validate updated Cloudflare resources.')
+  return result.data.worker
+}
+
+function assertApplicable(plan: CloudflareResourcePlan): void {
+  if (!args.some((arg) => ['--yes', '-y'].includes(arg)))
     throw new Error(
       'Run apply --yes after reviewing the plan. No remote changes were made.',
     )
@@ -153,43 +222,39 @@ async function apply(
     throw new Error(
       'Resolve blocked resources before applying. No remote changes were made.',
     )
-  if (!plan.actions.length) return 0
-  assertAuthentication(configuration, plan.mode)
-  for (const action of plan.actions) {
-    console.log(`Creating ${action.type}: ${action.name}`)
-    const result = runCf(action.cfArgs, configuration, plan.mode)
-    if (result.status !== 0)
-      throw new Error(
-        `${result.detail}\nCreation stopped. Earlier resource identifiers remain saved; no rollback or delete was attempted.`,
-      )
-    const value: unknown = JSON.parse(result.stdout)
-    const field =
-      action.type === 'kv' ? 'id' : action.type === 'd1' ? 'uuid' : 'name'
-    const id =
-      isRecord(value) && typeof value[field] === 'string' ? value[field] : null
-    if (!id)
-      throw new Error(
-        `cf returned no ${field} for ${action.configPath}. Review the created resource before retrying.`,
-      )
-    storeCloudflareResourceId(
-      configuration.accountId,
-      plan.workerName,
-      action.binding,
-      action.type,
-      id,
+}
+
+function createResource(
+  configuration: CloudflareConfiguration,
+  plan: CloudflareResourcePlan,
+  action: CloudflareResourcePlan['actions'][number],
+): void {
+  console.log(`Creating ${action.type}: ${action.name}`)
+  const result = runCf(action.cfArgs, configuration, plan.mode)
+  if (result.status !== 0)
+    throw new Error(
+      `${result.detail}\nCreation stopped. Earlier resource identifiers remain saved; no rollback or delete was attempted.`,
     )
-  }
-  const { result } = await loadAndParseConfig(
-    join(ROOT, 'cloudflare.config.ts'),
-    { mode: plan.mode, isPreview: false },
+  const value: unknown = JSON.parse(result.stdout)
+  const field = { kv: 'id', d1: 'uuid', r2: 'name' }[action.type]
+  const id = readResourceId(value, field)
+  if (!id)
+    throw new Error(
+      `cf returned no ${field} for ${action.configPath}. Review the created resource before retrying.`,
+    )
+  storeCloudflareResourceId(
+    configuration.accountId,
+    plan.workerName,
+    action.binding,
+    action.type,
+    id,
   )
-  if (!result.success || !result.data.worker)
-    throw new Error('Unable to validate updated Cloudflare resources.')
-  assertReady(createCloudflareResourcePlan(result.data.worker, plan.mode))
-  console.log(
-    'Cloudflare resources were created and cloudflare.resources.json was updated.',
-  )
-  return 0
+}
+
+function readResourceId(value: unknown, field: string): string | null {
+  return isRecord(value) && typeof value[field] === 'string'
+    ? value[field]
+    : null
 }
 
 function assertAuthentication(
@@ -200,11 +265,7 @@ function assertAuthentication(
   if (result.status !== 0)
     throw new Error(`Authentication unavailable: ${result.detail}`)
   const value: unknown = JSON.parse(result.stdout)
-  if (
-    !isRecord(value) ||
-    value.authenticated !== true ||
-    value.tokenValid !== true
-  ) {
+  if (!isAuthenticated(value)) {
     throw new Error(
       'Authentication unavailable. Run `cf auth create <profile>`; cf has a separate credential store from Wrangler.',
     )
@@ -230,24 +291,32 @@ function assertExistingResources(
       throw new Error(
         `Resource verification failed for ${check.configPath}: ${result.detail}`,
       )
-    const value: unknown = JSON.parse(result.stdout)
-    if (!check.queueName && (!isRecord(value) || !Object.keys(value).length)) {
-      throw new Error(
-        `cf returned no existing resource for ${check.configPath}. Deployment stopped.`,
-      )
-    }
-    if (
-      check.queueName &&
-      (!Array.isArray(value) ||
-        !value.some(
-          (queue) => isRecord(queue) && queue.queue_name === check.queueName,
-        ))
-    ) {
-      throw new Error(
-        `Queue ${check.queueName} does not exist. Create or adopt it before deploying.`,
-      )
-    }
+    assertResourceResponse(JSON.parse(result.stdout), check)
   }
+}
+
+function assertResourceResponse(
+  value: unknown,
+  check: CloudflareResourcePlan['checks'][number],
+): void {
+  if (check.queueName) {
+    assertQueueExists(value, check.queueName)
+    return
+  }
+  if (!isRecord(value) || !Object.keys(value).length)
+    throw new Error(
+      `cf returned no existing resource for ${check.configPath}. Deployment stopped.`,
+    )
+}
+
+function assertQueueExists(value: unknown, name: string): void {
+  if (
+    !Array.isArray(value) ||
+    !value.some((queue) => isRecord(queue) && queue.queue_name === name)
+  )
+    throw new Error(
+      `Queue ${name} does not exist. Create or adopt it before deploying.`,
+    )
 }
 
 function runCf(
@@ -256,10 +325,9 @@ function runCf(
   mode: string,
   inherit = false,
 ) {
-  const command = resolveCloudflareCommand(ROOT)
-  if (!command) throw new Error('cf was not found. Run `bun install`.')
+  const command = findCfCommand()
   const hasMode = cfArgs.some(
-    (arg) => arg === '--mode' || arg === '-m' || arg.startsWith('--mode='),
+    (arg) => arg === '-m' || arg.split('=')[0] === '--mode',
   )
   const result = spawnSync(
     'node',
@@ -283,8 +351,8 @@ function runCf(
   )
   return {
     status: result.status ?? 1,
-    stdout: result.stdout ?? '',
-    detail: result.error?.message ?? result.stderr?.trim() ?? '',
+    stdout: readCommandOutput(result.stdout),
+    detail: readCommandDetail(result),
   }
 }
 
@@ -303,40 +371,71 @@ function readConfiguration(): CloudflareConfiguration {
 }
 
 function readMode(values: string[]): string {
-  const selected: string[] = []
-  for (let index = 0; index < values.length; index++) {
-    const arg = values[index]
-    if (arg === '--mode' || arg === '-m') {
-      const next = values[++index]
-      if (!next || next.startsWith('-'))
-        throw new Error('Cloudflare mode requires a value.')
-      selected.push(next)
-    } else if (arg.startsWith('--mode='))
-      selected.push(arg.slice('--mode='.length))
-  }
+  const selected = selectModes(values)
   if (selected.length > 1 || selected.some((value) => !value))
     throw new Error('Specify one Cloudflare mode.')
   return selected[0] ?? 'production'
 }
 
-function readBooleanFlag(values: string[], flag: string): boolean {
-  const selected: boolean[] = []
+function selectModes(values: string[]): string[] {
+  const selected: string[] = []
   for (let index = 0; index < values.length; index++) {
     const arg = values[index]
-    if (arg === flag) {
-      const next = values[index + 1]
-      selected.push(next !== 'false')
-      if (next === 'true' || next === 'false') index++
-    } else if (arg === `--no-${flag.slice(2)}`) selected.push(false)
-    else if (arg.startsWith(`${flag}=`)) {
-      const value = arg.slice(flag.length + 1)
-      if (value !== 'true' && value !== 'false')
-        throw new Error(`Invalid ${flag} value.`)
-      selected.push(value === 'true')
-    }
+    if (['--mode', '-m'].includes(arg))
+      selected.push(readModeValue(values[++index]))
+    else if (arg.startsWith('--mode='))
+      selected.push(arg.slice('--mode='.length))
   }
+  return selected
+}
+
+function readModeValue(value: string | undefined): string {
+  if (!value || value.startsWith('-'))
+    throw new Error('Cloudflare mode requires a value.')
+  return value
+}
+
+function readBooleanFlag(values: string[], flag: string): boolean {
+  const selected = selectBooleanFlags(values, flag)
   if (selected.length > 1) throw new Error(`Specify ${flag} only once.`)
   return selected[0] ?? false
+}
+
+function selectBooleanFlags(values: string[], flag: string): boolean[] {
+  const selected: boolean[] = []
+  for (let index = 0; index < values.length; index++) {
+    const option = parseBooleanFlag(values[index], values[index + 1], flag)
+    if (option) {
+      selected.push(option.value)
+      index += option.consumed
+    }
+  }
+  return selected
+}
+
+function parseBooleanFlag(
+  arg: string,
+  next: string,
+  flag: string,
+): { value: boolean; consumed: number } | null {
+  if (arg === flag)
+    return {
+      value: next !== 'false',
+      consumed: Number(['true', 'false'].includes(next)),
+    }
+  if (arg === `--no-${flag.slice(2)}`) return { value: false, consumed: 0 }
+  if (arg.startsWith(`${flag}=`))
+    return {
+      value: readBooleanValue(arg.slice(flag.length + 1), flag),
+      consumed: 0,
+    }
+  return null
+}
+
+function readBooleanValue(value: string, flag: string): boolean {
+  if (!['true', 'false'].includes(value))
+    throw new Error(`Invalid ${flag} value.`)
+  return value === 'true'
 }
 
 function withoutBooleanFlags(values: string[], flags: string[]): string[] {
@@ -360,11 +459,15 @@ function withoutBooleanFlags(values: string[], flags: string[]): string[] {
 function assertProjectOptions(values: string[], allowYes: boolean): void {
   for (let index = 0; index < values.length; index++) {
     const arg = values[index]
-    if (arg === '--mode' || arg === '-m') index++
-    else if (arg.startsWith('--mode=')) continue
-    else if (!allowYes || (arg !== '--yes' && arg !== '-y'))
+    if (['--mode', '-m'].includes(arg)) index++
+    else if (!isAllowedProjectOption(arg, allowYes))
       throw new Error(`Unsupported project option: ${arg}`)
   }
+}
+
+function isAllowedProjectOption(arg: string, allowYes: boolean): boolean {
+  if (arg.startsWith('--mode=')) return true
+  return allowYes && ['--yes', '-y'].includes(arg)
 }
 
 function printPlan(
@@ -403,4 +506,25 @@ function assertReady(plan: CloudflareResourcePlan): void {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function findCfCommand(): string {
+  const command = resolveCloudflareCommand(ROOT)
+  if (!command) throw new Error('cf was not found. Run `bun install`.')
+  return command
+}
+
+function readCommandOutput(value: string | null): string {
+  return value ?? ''
+}
+
+function readCommandDetail(result: SpawnSyncReturns<string>): string {
+  if (result.error) return result.error.message
+  return readCommandOutput(result.stderr).trim()
+}
+
+function isAuthenticated(value: unknown): boolean {
+  return (
+    isRecord(value) && value.authenticated === true && value.tokenValid === true
+  )
 }

@@ -8,6 +8,8 @@ const RESOURCE_IDS_PATH = resolve(
   'cloudflare.resources.json',
 )
 
+type Binding = NonNullable<WorkerConfig['env']>[string]
+
 type ResourceIdentifier = { type: string; id: string }
 type ResourceIdentifiers = Record<
   string,
@@ -19,24 +21,37 @@ export function withCloudflareResourceIds<const T extends WorkerConfig>(
   accountId?: string,
 ): T {
   if (!accountId) return worker
-  const identifiers = readIdentifiers()[accountId]?.[worker.name] ?? {}
-
-  for (const [name, binding] of Object.entries(worker.env ?? {})) {
+  const identifiers = identifiersForWorker(accountId, worker.name)
+  Object.entries(worker.env ?? {}).forEach(([name, binding]) => {
     const stored = identifiers[name]
-    if (!stored) continue
-    if (stored.type !== binding.type) {
-      throw new Error(
-        `Stored Cloudflare resource type differs for ${name}. Review cloudflare.resources.json.`,
-      )
-    }
-    if (binding.type === 'kv' || binding.type === 'd1') {
-      binding.id ||= stored.id
-    } else if (binding.type === 'r2') {
-      binding.name ||= stored.id
-    }
-  }
-
+    if (stored) restoreIdentifier(name, binding, stored)
+  })
   return worker
+}
+
+function identifiersForWorker(
+  accountId: string,
+  workerName: string,
+): Record<string, ResourceIdentifier> {
+  return readIdentifiers()[accountId]?.[workerName] ?? {}
+}
+
+function restoreIdentifier(
+  name: string,
+  binding: Binding,
+  stored: ResourceIdentifier,
+): void {
+  if (stored.type !== binding.type) {
+    throw new Error(
+      `Stored Cloudflare resource type differs for ${name}. Review cloudflare.resources.json.`,
+    )
+  }
+  restoreDatabaseIdentifier(binding, stored.id)
+  if (binding.type === 'r2') binding.name ||= stored.id
+}
+
+function restoreDatabaseIdentifier(binding: Binding, id: string): void {
+  if (binding.type === 'kv' || binding.type === 'd1') binding.id ||= id
 }
 
 export function storeCloudflareResourceId(
@@ -56,26 +71,42 @@ export function storeCloudflareResourceId(
 function readIdentifiers(): ResourceIdentifiers {
   if (!existsSync(RESOURCE_IDS_PATH)) return {}
   const value: unknown = JSON.parse(readFileSync(RESOURCE_IDS_PATH, 'utf-8'))
-  if (!isRecord(value)) throw new Error('Invalid cloudflare.resources.json.')
-  for (const workers of Object.values(value)) {
-    if (!isRecord(workers))
-      throw new Error('Invalid Cloudflare resource account.')
-    for (const bindings of Object.values(workers)) {
-      if (!isRecord(bindings))
-        throw new Error('Invalid Cloudflare resource Worker.')
-      for (const identifier of Object.values(bindings)) {
-        if (
-          !isRecord(identifier) ||
-          typeof identifier.type !== 'string' ||
-          typeof identifier.id !== 'string' ||
-          !identifier.id
-        ) {
-          throw new Error('Invalid Cloudflare resource identifier.')
-        }
-      }
-    }
-  }
-  return value as ResourceIdentifiers
+  assertResourceIdentifiers(value)
+  return value
+}
+
+function assertResourceIdentifiers(
+  value: unknown,
+): asserts value is ResourceIdentifiers {
+  assertRecord(value, 'Invalid cloudflare.resources.json.')
+  Object.values(value).forEach(assertWorkers)
+}
+
+function assertWorkers(value: unknown): void {
+  assertRecord(value, 'Invalid Cloudflare resource account.')
+  Object.values(value).forEach(assertBindings)
+}
+
+function assertBindings(value: unknown): void {
+  assertRecord(value, 'Invalid Cloudflare resource Worker.')
+  Object.values(value).forEach(assertIdentifier)
+}
+
+function assertIdentifier(value: unknown): void {
+  assertRecord(value, 'Invalid Cloudflare resource identifier.')
+  if (
+    typeof value.type !== 'string' ||
+    typeof value.id !== 'string' ||
+    !value.id
+  )
+    throw new Error('Invalid Cloudflare resource identifier.')
+}
+
+function assertRecord(
+  value: unknown,
+  message: string,
+): asserts value is Record<string, unknown> {
+  if (!isRecord(value)) throw new Error(message)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

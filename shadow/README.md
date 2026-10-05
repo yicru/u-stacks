@@ -234,12 +234,14 @@ Vite+ and its `vite` alias are pinned to the same release. Tests and generated m
 
 Fallow declares Cloudflare configuration and T3 worktree helper scripts as entry points because the tools load them by filename or subprocess. Portless is retained as the CLI started by `scripts/dev.ts`. `bun run fallow` analyzes the full codebase, including inherited duplication and complexity findings. `bun run fallow:audit -- --base <ref>` applies the configured `new-only` gate to a changeset; it does not replace the full analysis in `quality`.
 
-The current dependency audit also reports two advisories without published fixes:
+Two development dependencies have advisories without published fixes. The template applies local [Bun patches](https://bun.sh/docs/pm/cli/patch) through `patchedDependencies` in `package.json` and `bun.lock`; `bun install --frozen-lockfile` applies them in new checkouts:
 
-- [braces stack exhaustion](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm): shadcn and scaffdog use this development dependency for local file patterns. Keep those patterns under developer control.
-- [node-forge signature verification](https://github.com/advisories/GHSA-86w9-cpqp-85rv): dotenvx brings this development dependency for its optional proxy certificate generation. This template uses dotenvx's environment-loading command and does not use its proxy or RSA signature-verification API.
+- [braces stack exhaustion](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm): `patches/braces@3.0.3.patch` bounds parser nesting and recursive compile, expand, and stringify AST walks to a depth limit of 512. Excessively nested patterns or ASTs raise `SyntaxError`. Ordinary shadcn and scaffdog file patterns retain their behavior.
+- [node-forge signature verification](https://github.com/advisories/GHSA-86w9-cpqp-85rv): `patches/node-forge@1.4.0.patch` adds the nested DigestAlgorithm element-count check proposed in [upstream PR #1152](https://github.com/digitalbazaar/forge/pull/1152). RSA PKCS#1 v1.5 verification rejects extra unconsumed elements while accepting supported OID-only and OID-plus-NULL sequences. dotenvx uses this package for its optional proxy certificate generation.
 
-Neither dependency is part of the Worker application. The advisories remain visible in `bun audit`; check for upstream fixes during subsequent updates.
+`scripts/dependency-security.test.ts` exercises the installed packages in Node.js, covering malicious inputs and valid behavior. Both regressions fail without the patches. Neither dependency is part of the Worker application. `bun audit` still reports both advisories because it checks published version metadata rather than local patch contents; the findings are kept visible. Replace the patches with verified upstream releases when fixes become available, then rerun the regression tests and audit.
+
+Cloudflare resource planning, saved identifier validation, command guards, and local process supervision are split by responsibility. Setup shares its active-pattern scanner for worktree includes and Effect source ignores. Full Fallow analysis passes without changing its thresholds or exclusions.
 
 ## Notes
 

@@ -150,7 +150,7 @@ Fallow entry points include Cloudflare configuration and T3 worktree helpers tha
 
 The Fallow dependency exclusions cover component-library imports in the ignored UI sources, including `cn` and `@shadcn/react`. `@shadcn/lint` is loaded by its package name in `lint.jsPlugins`, rather than a static import. Vendored skill files are excluded from source-quality checks, formatting, and Tailwind class scanning.
 
-The README records the unpatched braces and node-forge advisories and their development-only consumers. Keep `bun audit` findings visible and recheck upstream releases instead of suppressing them.
+The README documents local Bun patches for the braces and node-forge advisories. Keep `patchedDependencies`, the patch files, and `bun.lock` aligned; verify package changes with `scripts/dependency-security.test.ts`. `bun audit` checks published version metadata and still reports these patched versions. Keep the findings visible and replace patches with verified upstream fixes when available.
 
 ### SSR self-reference
 

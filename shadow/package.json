@@ -103,6 +103,10 @@
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "packageManager": "bun@1.4.2",
+  "patchedDependencies": {
+    "braces@3.0.3": "patches/braces@3.0.3.patch",
+    "node-forge@1.4.0": "patches/node-forge@1.4.0.patch"
+  },
   "portless": {
     "name": "shadow"
   }

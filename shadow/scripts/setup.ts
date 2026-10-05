@@ -123,16 +123,25 @@ function configureWorktreeIncludes(repositoryRoot: string): void {
   const missingPatterns = patterns.filter(
     (pattern) => !hasActivePattern(currentContent, pattern),
   )
+  appendPatterns(worktreeIncludePath, currentContent, missingPatterns)
+}
 
-  if (missingPatterns.length === 0) {
-    return
-  }
+function appendPatterns(
+  filePath: string,
+  content: string,
+  patterns: string[],
+): void {
+  if (!patterns.length) return
+  writeFileSync(
+    filePath,
+    `${withFinalNewline(content)}${patterns.join('\n')}\n`,
+  )
+}
 
-  const prefix =
-    currentContent.length === 0 || currentContent.endsWith('\n')
-      ? currentContent
-      : `${currentContent}\n`
-  writeFileSync(worktreeIncludePath, `${prefix}${missingPatterns.join('\n')}\n`)
+function withFinalNewline(content: string): string {
+  return content.length === 0 || content.endsWith('\n')
+    ? content
+    : `${content}\n`
 }
 
 function configureT3Project(repositoryRoot: string): void {
@@ -169,16 +178,9 @@ function configureEffectSourceIgnore(repositoryRoot: string): void {
   const currentContent = existsSync(gitIgnorePath)
     ? readFileSync(gitIgnorePath, 'utf-8')
     : ''
-
-  if (hasActiveDirectoryPattern(currentContent, EFFECT_SOURCE_IGNORE_PATTERN)) {
+  if (hasActiveDirectoryPattern(currentContent, EFFECT_SOURCE_IGNORE_PATTERN))
     return
-  }
-
-  const prefix =
-    currentContent.length === 0 || currentContent.endsWith('\n')
-      ? currentContent
-      : `${currentContent}\n`
-  writeFileSync(gitIgnorePath, `${prefix}${EFFECT_SOURCE_IGNORE_PATTERN}\n`)
+  appendPatterns(gitIgnorePath, currentContent, [EFFECT_SOURCE_IGNORE_PATTERN])
 }
 
 function createT3WorktreeSetupScript(
@@ -204,27 +206,15 @@ function quoteShellArgument(value: string): string {
 function hasActiveDirectoryPattern(content: string, pattern: string): boolean {
   const withoutLeadingSlash = pattern.replace(/^\//, '')
   const withoutTrailingSlash = pattern.replace(/\/$/, '')
-  const equivalentPatterns = new Set([
-    pattern,
-    withoutLeadingSlash,
-    withoutTrailingSlash,
-    withoutLeadingSlash.replace(/\/$/, ''),
-  ])
-  let active = false
-
-  for (const line of content.split(/\r?\n/)) {
-    const candidate = line.trim()
-    if (equivalentPatterns.has(candidate)) {
-      active = true
-    } else if (
-      candidate.startsWith('!') &&
-      equivalentPatterns.has(candidate.slice(1))
-    ) {
-      active = false
-    }
-  }
-
-  return active
+  return isActivePattern(
+    content,
+    new Set([
+      pattern,
+      withoutLeadingSlash,
+      withoutTrailingSlash,
+      withoutLeadingSlash.replace(/\/$/, ''),
+    ]),
+  )
 }
 
 function readT3Project(filePath: string): Record<string, unknown> {
@@ -275,22 +265,20 @@ function findRepositoryRoot(): string {
 }
 
 function hasActivePattern(content: string, pattern: string): boolean {
-  const equivalentPatterns = new Set([pattern, pattern.slice(1)])
-  let active = false
+  return isActivePattern(content, new Set([pattern, pattern.slice(1)]))
+}
 
-  for (const line of content.split(/\r?\n/)) {
+function isActivePattern(
+  content: string,
+  equivalentPatterns: ReadonlySet<string>,
+): boolean {
+  return content.split(/\r?\n/).reduce((active, line) => {
     const candidate = line.trim()
-    if (equivalentPatterns.has(candidate)) {
-      active = true
-    } else if (
-      candidate.startsWith('!') &&
-      equivalentPatterns.has(candidate.slice(1))
-    ) {
-      active = false
-    }
-  }
-
-  return active
+    if (equivalentPatterns.has(candidate)) return true
+    if (candidate.startsWith('!') && equivalentPatterns.has(candidate.slice(1)))
+      return false
+    return active
+  }, false)
 }
 
 function configureProductionTurso(projectName: string): boolean {
@@ -815,30 +803,8 @@ function getCloudflareAccounts(
   cfCommand: string,
   profile: string,
 ): CloudflareAccount[] {
-  const result = spawnSync(
-    'node',
-    [cfCommand, 'auth', 'whoami', '--profile', profile],
-    {
-      cwd: ROOT,
-      encoding: 'utf-8',
-      env: suppressCloudflareCredentialEnvironmentVariables(process.env),
-    },
-  )
-  const detail = [result.stdout, result.stderr].join('\n').trim()
-
-  if (result.status !== 0) {
-    throw new Error(detail || 'Failed to read Cloudflare accounts.')
-  }
-
-  const identity: unknown = JSON.parse(result.stdout)
-  if (
-    typeof identity !== 'object' ||
-    identity === null ||
-    !('authenticated' in identity) ||
-    identity.authenticated !== true ||
-    !('tokenValid' in identity) ||
-    identity.tokenValid !== true
-  ) {
+  const identity = readCloudflareIdentity(cfCommand, profile)
+  if (!isAuthenticatedCloudflareIdentity(identity)) {
     throw new Error(
       'cf authentication is unavailable. cf uses a separate credential store from Wrangler.',
     )
@@ -1129,4 +1095,29 @@ function confirm(question: string, defaultValue: boolean): boolean {
 
   console.log('Please answer with y or n.')
   return confirm(question, defaultValue)
+}
+
+function isAuthenticatedCloudflareIdentity(value: unknown): boolean {
+  return (
+    isRecord(value) && value.authenticated === true && value.tokenValid === true
+  )
+}
+
+function readCloudflareIdentity(cfCommand: string, profile: string): unknown {
+  const result = spawnSync(
+    'node',
+    [cfCommand, 'auth', 'whoami', '--profile', profile],
+    {
+      cwd: ROOT,
+      encoding: 'utf-8',
+      env: suppressCloudflareCredentialEnvironmentVariables(process.env),
+    },
+  )
+  const detail = [result.stdout, result.stderr].join('\n').trim()
+
+  if (result.status !== 0) {
+    throw new Error(detail || 'Failed to read Cloudflare accounts.')
+  }
+
+  return JSON.parse(result.stdout)
 }

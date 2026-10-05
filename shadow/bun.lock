@@ -67,6 +67,10 @@
       },
     },
   },
+  "patchedDependencies": {
+    "node-forge@1.4.0": "patches/node-forge@1.4.0.patch",
+    "braces@3.0.3": "patches/braces@3.0.3.patch",
+  },
   "overrides": {
     "esbuild": "0.28.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@1.0.0",
