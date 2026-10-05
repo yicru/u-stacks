@@ -19,6 +19,10 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
+        name: 'robots',
+        content: 'noindex',
+      },
+      {
         title: 'shadow',
       },
     ],
