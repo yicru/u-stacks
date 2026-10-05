@@ -5,7 +5,6 @@ import { loadTasks } from '@/features/task/load-tasks'
 import { Separator } from '@/components/ui/separator'
 
 export const Route = createFileRoute('/')({
-  ssr: true,
   loader: ({ abortController }) =>
     loadTasks({ page: 1, perPage: 10 }, abortController.signal),
   component: App,

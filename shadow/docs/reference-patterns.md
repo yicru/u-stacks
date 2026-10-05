@@ -4,11 +4,11 @@ Open `/reference` after starting the app. It reads the existing tasks table; add
 
 ## Data loading
 
-**List first** starts the page and summary independently. The route awaits only the page, returning the summary Promise to TanStack Router's `Await` component. SSR can stream the list before the summary resolves. A summary failure displays an inline error without hiding the list; a page failure uses the route error UI. There is no synthetic delay or request timeout. With small data, both reads may finish before any placeholder is visible.
+**List first** starts the page and summary independently in the browser. The route awaits only the page, returning the summary Promise to TanStack Router's `Await` component. The client renders the list before the summary resolves. A summary failure displays an inline error without hiding the list; a page failure uses the route error UI. There is no synthetic delay or request timeout. With small data, both reads may finish before any placeholder is visible.
 
 **Wait for both** uses the overview endpoint. `ReferenceService.overview` runs page and summary reads with `Effect.all` and concurrency 2. They use two database requests, without a dependency between them; this is different from the sequential transaction inside libSQL `batch`. Browser navigation makes one aggregate HTTP API request. These independent reads are not a transaction and can observe different database states during concurrent writes. Use a transaction or batch when consistency between the results matters.
 
-SSR calls the service directly through a ManagedRuntime. Browser loaders use the private Effect HTTP client. Both use the existing Database Layer and memo map. Loader abort signals propagate to the Effect runner; obsolete browser reads are canceled. Already-submitted SQL is not rolled back by cancellation. No results are cached globally across users or requests.
+Pages remain client-rendered. Loaders use `createClientOnlyFn` and the private Effect HTTP client; API handlers use the existing Database Layer and shared memo map. Loader abort signals propagate to the Effect runner; obsolete browser reads are canceled. Already-submitted SQL is not rolled back by cancellation. No results are cached globally across users or requests.
 
 ## Cursor pagination and grouped retrieval
 

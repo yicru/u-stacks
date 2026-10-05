@@ -8,7 +8,7 @@ import { ThemeProvider } from 'next-themes'
 import { Toaster } from '@/components/ui/toast'
 
 export const Route = createRootRoute({
-  ssr: true,
+  ssr: false,
   head: () => ({
     meta: [
       {

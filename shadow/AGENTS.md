@@ -25,7 +25,7 @@ shadow/
 │   └── features/                  # Domain UI components
 ├── server/
 │   ├── index.ts                   # Traced API entry
-│   ├── runtime.ts                 # Shared production Layers and ManagedRuntime
+│   ├── runtime.ts                 # Shared API service Layers and memo map
 │   ├── handler.ts                 # Effect API Web handler factory
 │   ├── db/
 │   │   ├── index.ts               # Database Context.Service
@@ -123,7 +123,7 @@ After generation:
 
 ### Shared contract boundary
 
-Browser implementations use `shared/api` and `src/lib/api-client.ts`. Server runtime imports belong in `src/routes/api/$.ts` or compiler-separated `.server()` implementations of `createIsomorphicFn`, as shown in `src/features/task/load-tasks.ts`. Keep them out of `.client()` implementations and shared runtime imports.
+Browser implementations use `shared/api` and `src/lib/api-client.ts`. Server runtime imports belong in API route bridges such as `src/routes/api/$.ts` or the compiler-separated server implementation in `src/routes/api/reference/$.ts`. Page loaders use `createClientOnlyFn` and must not import server runtime modules.
 
 ### Cloudflare environment
 
@@ -157,9 +157,9 @@ The Fallow dependency exclusions cover component-library imports in the ignored 
 
 The README documents local pnpm patches for the braces and node-forge advisories. Keep `patchedDependencies`, the patch files, and `pnpm-lock.yaml` aligned; verify package changes with `scripts/dependency-security.test.ts`. `pnpm audit` checks published version metadata and still reports these patched versions. Keep the findings visible and replace patches with verified upstream fixes when available.
 
-### SSR self-reference
+### SPA rendering and API access
 
-`src/start.ts` keeps new routes client-only by default. The root and task page opt into SSR; their isomorphic loader calls the shared ManagedRuntime on the server and HttpApiClient in the browser. Reuse the production Layer and memo map in `server/runtime.ts` for both paths so database resources remain shared. Forward each loader's `abortController.signal` to the Effect runner. An SSR loader must call services directly instead of fetching its own `/api` URL.
+Keep all pages client-rendered. `src/start.ts` sets `defaultSsr: false`, and the root route explicitly sets `ssr: false`, which its child pages inherit. Do not opt pages into SSR. Page loaders call `HttpApiClient` in the browser and forward `abortController.signal` to the Effect runner. The HTML shell still renders on the server, including `noindex`, styles, and bootstrap scripts, without reading page data. API handlers share the production Layers and memo map in `server/runtime.ts` so the database client remains shared.
 
 ### Generated files
 

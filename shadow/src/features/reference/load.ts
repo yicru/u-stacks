@@ -1,4 +1,4 @@
-import { createIsomorphicFn } from '@tanstack/react-start'
+import { createClientOnlyFn } from '@tanstack/react-start'
 import { Effect } from 'effect'
 import type {
   ReferenceOverview,
@@ -40,21 +40,8 @@ async function readData(
   return { page: await readers.page(), summary }
 }
 
-export const loadReference = createIsomorphicFn()
-  .server(async (search: typeof ReferenceSearch.Type, signal: AbortSignal) => {
-    const { loadPage, loadSummary, loadOverview } =
-      await import('@server/modules/reference/runtime')
-    const query = pageQuery(search)
-    return readData(
-      {
-        page: () => loadPage(query, signal),
-        summary: () => loadSummary(signal),
-        overview: () => loadOverview(query, signal),
-      },
-      search.mode,
-    )
-  })
-  .client(async (search: typeof ReferenceSearch.Type, signal: AbortSignal) => {
+export const loadReference = createClientOnlyFn(
+  async (search: typeof ReferenceSearch.Type, signal: AbortSignal) => {
     const { referenceClient } = await import('./client')
     const query = pageQuery(search)
     return readData(
@@ -72,4 +59,5 @@ export const loadReference = createIsomorphicFn()
       },
       search.mode,
     )
-  })
+  },
+)

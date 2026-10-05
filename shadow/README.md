@@ -6,7 +6,7 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 
 ## Features
 
-- TanStack Start with file-based routing
+- TanStack Start with client-rendered SPA pages and file-based routing
 - Effect v4 stable with HTTP API mounted under `/api`
 - Shared Effect Schema for request, response, and error contracts
 - Effect `Context.Service` and Layer-based services

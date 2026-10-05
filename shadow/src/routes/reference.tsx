@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button'
 export const Route = createFileRoute('/reference')({
   validateSearch: Schema.toStandardSchemaV1(ReferenceSearch),
   loaderDeps: ({ search }) => search,
-  ssr: true,
   loader: ({ deps, abortController }) =>
     loadReference(deps, abortController.signal),
   component: ReferencePage,
