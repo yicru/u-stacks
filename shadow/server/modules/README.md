@@ -155,7 +155,7 @@ DB Promiseの失敗は`Effect.tryPromise`で捕捉し、外部contractのtyped e
 
 1. `shared/api/index.ts`の`AppApi`へAPI groupを追加
 2. `server/handler.ts`へhandler Layerを追加し、factoryが受け取るservice Layerの要件を拡張
-3. `server/index.ts`でservice Live Layerへ`DatabaseLive`を供給
+3. `server/runtime.ts`でservice Live Layerへ`DatabaseLive`と`CloudflareDatabaseTracing`を供給し、APIとSSRで同じLayerとmemo mapを使う
 
 browserはserver型をimportせず、`src/lib/api-client.ts`の`HttpApiClient`からgroup endpointを呼び出す。
 

@@ -1,12 +1,15 @@
-import { format } from 'date-fns'
-import { TZDate } from '@date-fns/tz'
-
-const TIME_ZONE = 'Asia/Tokyo'
+const dateTimeFormatter = new Intl.DateTimeFormat('ja-JP', {
+  timeZone: 'Asia/Tokyo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
 
 export function formatDateTime(date: string | Date): string {
-  const d =
-    typeof date === 'string'
-      ? new TZDate(date, TIME_ZONE)
-      : new TZDate(date, TIME_ZONE)
-  return format(d, 'yyyy/MM/dd HH:mm')
+  return dateTimeFormatter.format(
+    typeof date === 'string' ? new Date(date) : date,
+  )
 }

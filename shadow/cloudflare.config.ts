@@ -10,8 +10,10 @@ export default defineConfig(() => ({
       name: 'shadow',
       compatibilityDate: '2026-09-30',
       entrypoint: '@tanstack/react-start/server-entry',
+      placement: { region: 'aws:ap-northeast-1' },
       observability: {
         enabled: true,
+        logs: { enabled: true, headSamplingRate: 1 },
         traces: { enabled: true, headSamplingRate: 0.01 },
       },
       env: {

@@ -28,6 +28,49 @@ afterEach(async () => {
 })
 
 describe('template setup', () => {
+  test('creates a new production database in Tokyo by default', async () => {
+    const directory = await createSetupFixture()
+    const binaryDirectory = join(directory, 'bin')
+    const commandLog = join(directory, 'turso.log')
+    await mkdir(binaryDirectory)
+    await writeFile(
+      join(binaryDirectory, 'turso'),
+      `#!/usr/bin/env node
+import { appendFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+appendFileSync(process.env.SHADOW_SETUP_TEST_LOG, args.join(' ') + '\\n')
+if (args[0] === 'db' && args[1] === 'show') console.log('libsql://production.turso.io')
+if (args[0] === 'db' && args[1] === 'tokens') console.log('fixture-token')
+if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
+`,
+    )
+    await chmod(join(binaryDirectory, 'turso'), 0o755)
+    const child = spawn(
+      process.execPath,
+      ['scripts/setup.ts', 'consumer-app'],
+      {
+        cwd: directory,
+        env: withoutCloudflareCredentials({
+          ...process.env,
+          PATH: `${binaryDirectory}${delimiter}${process.env.PATH ?? ''}`,
+          SHADOW_SETUP_TEST_LOG: commandLog,
+        }),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
+    const stderr: Buffer[] = []
+    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
+    child.stdin.end('y\ny\nconsumer-app\n\n\nn\n')
+
+    const [exitCode] = (await once(child, 'exit')) as [number | null]
+
+    expect(Buffer.concat(stderr).toString()).toBe('')
+    expect(exitCode).toBe(0)
+    expect(await readFile(commandLog, 'utf-8')).toContain(
+      'db create consumer-app --location aws-ap-northeast-1 --wait',
+    )
+  })
+
   test('pins the manually selected production database without storing its token in the target', async () => {
     const directory = await createSetupFixture()
     const binaryDirectory = join(directory, 'bin')

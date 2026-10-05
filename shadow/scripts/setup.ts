@@ -32,6 +32,7 @@ const EFFECT_SOURCE_IGNORE_PATTERN = '/.repos/effect/'
 const T3_SCHEMA_URL = 'https://t3.codes/schema/t3.json'
 const T3_WORKTREE_SETUP_SCRIPT_NAME = 'Setup Shadow Worktree'
 const LEGACY_T3_WORKTREE_SETUP_SCRIPT_NAME = 'Apply .worktreeinclude'
+const DEFAULT_TURSO_LOCATION = 'aws-ap-northeast-1'
 
 type PackageJson = {
   name?: string
@@ -342,7 +343,15 @@ function createTursoDatabase(
   }
 
   const groupName = selectTursoGroup()
-  const groupArgs = groupName ? ['--group', groupName] : []
+  const groupArgs = groupName
+    ? ['--group', groupName]
+    : [
+        '--location',
+        askRequired(
+          `Turso location (${DEFAULT_TURSO_LOCATION}):`,
+          DEFAULT_TURSO_LOCATION,
+        ),
+      ]
   runTursoCommand(
     ['db', 'create', databaseName, ...groupArgs, '--wait'],
     'Failed to create Turso database.',
@@ -394,7 +403,7 @@ function selectTursoGroup(): string | null {
       return askOptionalGroupName()
     }
 
-    console.log('Available Turso groups:')
+    console.log('Choose a Japan group to match the Worker placement in Tokyo:')
     groups.forEach((group, index) => {
       console.log(`${index + 1}. ${group}`)
     })
@@ -468,7 +477,7 @@ function parseGroupIndex(
 
 function askOptionalGroupName(): string | null {
   const groupName = ask(
-    'Enter Turso group name (leave blank to use Turso default placement):',
+    'Enter Turso group name (leave blank to choose a location; Tokyo is the default):',
   )
 
   return groupName || null
@@ -479,6 +488,7 @@ function getTursoGroups(): string[] {
     ['group', 'list'],
     'Failed to list Turso groups.',
   )
+  console.log(output)
 
   const groups = output
     .split(/\r?\n/)

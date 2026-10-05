@@ -9,6 +9,7 @@ import { TaskService } from './service'
 describe('TaskService', () => {
   let close: () => void
   let TestLive: Layer.Layer<TaskService>
+  let database: Database['Service']
 
   beforeEach(async () => {
     const client = createClient({ url: ':memory:' })
@@ -22,7 +23,7 @@ describe('TaskService', () => {
         updated_at INTEGER DEFAULT (unixepoch()) NOT NULL
       )
     `)
-    const database = drizzle(client, { schema })
+    database = drizzle(client, { schema })
     TestLive = TaskService.Live.pipe(
       Layer.provide(Layer.succeed(Database, database)),
     )
@@ -49,6 +50,35 @@ describe('TaskService', () => {
     expect(result.updated.data.done).toBe(true)
     expect(result.found.data.id).toBe(result.created.data.id)
     expect(result.removed).toEqual({ success: true })
+  })
+
+  it('paginates tasks newest first with a stable order for matching timestamps', async () => {
+    const older = new Date('2026-10-01T00:00:00Z')
+    const newer = new Date('2026-10-02T00:00:00Z')
+    const latest = new Date('2026-10-03T00:00:00Z')
+    await database.insert(schema.tasks).values([
+      { id: 'older', title: 'Older', createdAt: older, updatedAt: older },
+      { id: 'new-a', title: 'New A', createdAt: newer, updatedAt: newer },
+      { id: 'new-z', title: 'New Z', createdAt: newer, updatedAt: newer },
+      { id: 'latest', title: 'Latest', createdAt: latest, updatedAt: latest },
+    ])
+
+    const pages = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* TaskService
+        const first = yield* service.list({ page: 1, perPage: 2 })
+        const second = yield* service.list({ page: 2, perPage: 2 })
+        const empty = yield* service.list({ page: 3, perPage: 2 })
+        return [first, second, empty]
+      }).pipe(Effect.provide(TestLive)),
+    )
+
+    expect(pages.map((page) => page.data.map((task) => task.id))).toEqual([
+      ['latest', 'new-z'],
+      ['new-a', 'older'],
+      [],
+    ])
+    expect(pages.map((page) => page.meta.total)).toEqual([4, 4, 4])
   })
 
   it('fails with NOT_FOUND for a missing task', async () => {

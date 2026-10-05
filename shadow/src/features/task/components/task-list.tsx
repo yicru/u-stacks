@@ -16,6 +16,7 @@ import {
 import { formatDateTime } from '@/lib/date'
 import { apiClient } from '@/lib/api-client'
 import type { Task } from '@shared/api/task'
+import { measureTaskMutation } from '../measure-mutation'
 
 interface TaskListProps {
   tasks: ReadonlyArray<Task>
@@ -38,13 +39,16 @@ function useTaskActions() {
   const [isPending, startTransition] = useTransition()
 
   const runMutation = (
+    name: 'update' | 'delete',
     operation: () => Promise<unknown>,
     messages: MutationMessages,
   ) => {
     startTransition(async () => {
       try {
-        await operation()
-        router.invalidate()
+        await measureTaskMutation(name, async () => {
+          await operation()
+          await router.invalidate({ sync: true })
+        })
         if (messages.success) {
           toast.add({ title: messages.success, type: 'success' })
         }
@@ -56,6 +60,7 @@ function useTaskActions() {
 
   const handleToggle = (task: Task) => {
     runMutation(
+      'update',
       () =>
         Effect.runPromise(
           apiClient.tasks.updateTask({
@@ -69,6 +74,7 @@ function useTaskActions() {
 
   const handleDelete = (id: string) => {
     runMutation(
+      'delete',
       () =>
         Effect.runPromise(
           apiClient.tasks.deleteTask({

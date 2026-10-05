@@ -125,6 +125,7 @@ export class {{ inputs.name | pascal }}Api extends HttpApiGroup.make(
 
 ```typescript
 import { Database } from '@server/db'
+import { DatabaseTracing } from '@server/db/tracing'
 import { {{ inputs.name | camel | plur }} } from '@server/db/schema'
 import {
   toPaginatedResponse,
@@ -138,7 +139,7 @@ import type {
   {{ inputs.name | pascal }}Response,
   {{ inputs.name | pascal }}UpdateBody,
 } from '@shared/api/{{ inputs.name | kebab }}'
-import { count, eq, getTableColumns } from 'drizzle-orm'
+import { count, desc, eq, getTableColumns } from 'drizzle-orm'
 import { Context, Effect, Layer } from 'effect'
 
 export interface {{ inputs.name | pascal }}ServiceShape {
@@ -179,9 +180,10 @@ export class {{ inputs.name | pascal }}Service extends Context.Service<
     {{ inputs.name | pascal }}Service,
     Effect.gen(function* () {
       const database = yield* Database
+      const tracing = yield* DatabaseTracing
 
-      const run = <A>(operation: () => Promise<A>) =>
-        Effect.tryPromise(operation).pipe(
+      const run = <A>(name: string, operation: () => Promise<A>) =>
+        Effect.tryPromise(() => tracing.query(name, operation)).pipe(
           Effect.tapError((cause) => Effect.logError(cause)),
           Effect.mapError(() => InternalError.makeInternal()),
         )
@@ -190,13 +192,17 @@ export class {{ inputs.name | pascal }}Service extends Context.Service<
         list: Effect.fn('{{ inputs.name | pascal }}Service.list')(function* (
           query: {{ inputs.name | pascal }}ListQuery,
         ) {
-          return yield* run(async () => {
+          return yield* run('{{ inputs.name | camel | plur }}.list', async () => {
             const selection = database
               .select({
                 ...getTableColumns({{ inputs.name | camel | plur }}),
               })
               .from({{ inputs.name | camel | plur }})
-            const [data, totals] = await Promise.all([
+              .orderBy(
+                desc({{ inputs.name | camel | plur }}.createdAt),
+                desc({{ inputs.name | camel | plur }}.id),
+              )
+            const [data, totals] = await database.batch([
               withPagination(selection.$dynamic(), query),
               database
                 .select({ total: count() })
@@ -212,13 +218,14 @@ export class {{ inputs.name | pascal }}Service extends Context.Service<
         get: Effect.fn('{{ inputs.name | pascal }}Service.get')(function* (
           id: string,
         ) {
-          const data = yield* run(() =>
+          const data = yield* run('{{ inputs.name | camel | plur }}.get', () =>
             database
               .select({
                 ...getTableColumns({{ inputs.name | camel | plur }}),
               })
               .from({{ inputs.name | camel | plur }})
-              .where(eq({{ inputs.name | camel | plur }}.id, id)),
+              .where(eq({{ inputs.name | camel | plur }}.id, id))
+              .limit(1),
           )
           if (!data[0]) {
             return yield* Effect.fail(
@@ -232,7 +239,7 @@ export class {{ inputs.name | pascal }}Service extends Context.Service<
         create: Effect.fn('{{ inputs.name | pascal }}Service.create')(function* (
           body: {{ inputs.name | pascal }}CreateBody,
         ) {
-          const data = yield* run(() =>
+          const data = yield* run('{{ inputs.name | camel | plur }}.create', () =>
             database
               .insert({{ inputs.name | camel | plur }})
               .values(body)
@@ -249,7 +256,7 @@ export class {{ inputs.name | pascal }}Service extends Context.Service<
           id: string,
           body: {{ inputs.name | pascal }}UpdateBody,
         ) {
-          const data = yield* run(() =>
+          const data = yield* run('{{ inputs.name | camel | plur }}.update', () =>
             database
               .update({{ inputs.name | camel | plur }})
               .set(body)
@@ -270,7 +277,7 @@ export class {{ inputs.name | pascal }}Service extends Context.Service<
         remove: Effect.fn('{{ inputs.name | pascal }}Service.remove')(function* (
           id: string,
         ) {
-          const data = yield* run(() =>
+          const data = yield* run('{{ inputs.name | camel | plur }}.remove', () =>
             database
               .delete({{ inputs.name | camel | plur }})
               .where(eq({{ inputs.name | camel | plur }}.id, id))
