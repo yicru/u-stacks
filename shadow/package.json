@@ -20,8 +20,9 @@
     "fallow:audit": "fallow audit",
     "quality": "pnpm run lint && pnpm run test && pnpm run doctor && pnpm run fallow",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit push",
-    "db:migrate:prod": "dotenvx run --overload -f .dev.vars.production -- drizzle-kit push --config drizzle.production.config.ts",
+    "db:migrate": "drizzle-kit migrate",
+    "db:migrate:prod": "dotenvx run --overload -f .dev.vars.production -- drizzle-kit migrate --config drizzle.production.config.ts",
+    "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "generate:module": "scaffdog generate module",
     "setup": "node scripts/setup.ts"

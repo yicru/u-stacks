@@ -7,6 +7,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -27,6 +28,46 @@ afterEach(async () => {
 })
 
 describe('template setup', () => {
+  test('pins the manually selected production database without storing its token in the target', async () => {
+    const directory = await createSetupFixture()
+    const binaryDirectory = join(directory, 'bin')
+    await mkdir(binaryDirectory)
+    await writeFile(join(binaryDirectory, 'turso'), '#!/bin/sh\nexit 1\n')
+    await chmod(join(binaryDirectory, 'turso'), 0o755)
+    const child = spawn(
+      process.execPath,
+      ['scripts/setup.ts', 'consumer-app'],
+      {
+        cwd: directory,
+        env: withoutCloudflareCredentials({
+          ...process.env,
+          PATH: `${binaryDirectory}${delimiter}${process.env.PATH ?? ''}`,
+        }),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
+    const stderr: Buffer[] = []
+    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
+    child.stdin.end('y\ny\nlibsql://production.turso.io\nfixture-token\nn\n')
+
+    const [exitCode] = (await once(child, 'exit')) as [number | null]
+    expect(Buffer.concat(stderr).toString()).toBe('')
+    expect(exitCode).toBe(0)
+    expect(
+      JSON.parse(
+        await readFile(join(directory, 'turso.production.json'), 'utf-8'),
+      ),
+    ).toEqual({ hostname: 'production.turso.io' })
+    const credentials = await readFile(
+      join(directory, '.dev.vars.production'),
+      'utf-8',
+    )
+    expect(credentials).toContain(
+      'TURSO_DATABASE_URL=libsql://production.turso.io',
+    )
+    expect(credentials).toContain('TURSO_AUTH_TOKEN=fixture-token')
+  })
+
   test('keeps the CTA config formatter-compatible after renaming', async () => {
     const directory = await createSetupFixture()
     const child = spawn(process.execPath, ['scripts/setup.ts'], {
@@ -371,6 +412,12 @@ async function createTemporaryDirectory(): Promise<string> {
 async function createSetupFixture(targetDirectory?: string): Promise<string> {
   const directory = targetDirectory ?? (await createTemporaryDirectory())
   await mkdir(directory, { recursive: true })
+  await mkdir(join(directory, 'node_modules'), { recursive: true })
+  await symlink(
+    join(ROOT, 'node_modules/zod'),
+    join(directory, 'node_modules/zod'),
+    'dir',
+  )
 
   const files = [
     '.gitignore',
@@ -380,10 +427,12 @@ async function createSetupFixture(targetDirectory?: string): Promise<string> {
     'scripts/apply-worktreeinclude.mjs',
     'scripts/cloudflare-config.ts',
     'scripts/prepare-effect.mjs',
+    'scripts/production-database.ts',
     'scripts/setup.ts',
     'scripts/setup-worktree.mjs',
     'src/routes/__root.tsx',
     'cloudflare.config.ts',
+    'turso.production.json',
   ]
 
   for (const file of files) {

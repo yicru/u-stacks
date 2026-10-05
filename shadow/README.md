@@ -72,6 +72,7 @@ During setup you can:
 - optionally create a production Turso database or connect to an existing one
 - choose a Turso group from a detected list or enter one manually
 - write production credentials into `.dev.vars.production`
+- pin the production database hostname in `turso.production.json`
 - create or select a named cf profile for this project
 - select a Cloudflare account reachable by that profile
 - pin the profile and account for future Cloudflare commands
@@ -113,8 +114,9 @@ TURSO_AUTH_TOKEN=
 | `pnpm run fallow:audit`           | Gate newly introduced structural issues                      |
 | `pnpm run quality`                | Run lint, tests, React Doctor, and the full Fallow scan      |
 | `pnpm run db:generate`            | Generate Drizzle migrations from schema changes              |
-| `pnpm run db:migrate`             | Push schema changes to `.turso/dev.db`                       |
-| `pnpm run db:migrate:prod`        | Push schema changes using `.dev.vars.production`             |
+| `pnpm run db:migrate`             | Apply pending SQL migrations to `.turso/dev.db`              |
+| `pnpm run db:migrate:prod`        | Apply pending SQL to the pinned production database          |
+| `pnpm run db:push`                | Push schema directly to the local database for prototyping   |
 | `pnpm run db:studio`              | Open Drizzle Studio for `.turso/dev.db`                      |
 | `pnpm run generate:module`        | Scaffold an Effect API contract, handler, service, and test  |
 | `pnpm run deploy`                 | Build and deploy to Cloudflare Workers                       |
@@ -210,7 +212,13 @@ The Worker uses compatibility date `2026-09-30`, matching the workerd release bu
 
 Do not create a broad API token during initial setup. If CI or release automation is introduced later, create a separate account-scoped token at that point with only the resource write capabilities shown by `plan` plus Workers Scripts write for deployment, and keep it in the automation provider's secret store. The current local wrapper is intentionally named-profile-only; token-based automation should be added as a separate execution mode rather than placed in `.cloudflare.json` or `.dev.vars.production`.
 
-Prepare `.dev.vars.production` before deploying or running `pnpm run db:migrate:prod`. Production migrations use `drizzle.production.config.ts`; local database commands never read production Turso credentials. `.dev.vars.production` is the only file uploaded with `--secrets-file`; `.cloudflare.json` is never uploaded as a Worker secret.
+Prepare `.dev.vars.production` before deploying. Production migrations also require `turso.production.json` to pin the intended hostname; setup writes this public identifier separately from credentials. `drizzle.production.config.ts` rejects missing tokens, unpinned or mismatched databases, local or insecure URLs, and credentials embedded in URLs before returning connection settings. Local database commands never read production Turso credentials. `.dev.vars.production` is the only file uploaded with `--secrets-file`; `.cloudflare.json` and `turso.production.json` are never uploaded as Worker secrets.
+
+### Database migrations
+
+The template includes the initial SQL migration and Drizzle journal under `drizzle/`. Generate and review SQL with `pnpm run db:generate`, rehearse it locally with `pnpm run db:migrate`, then apply it to the pinned target with `pnpm run db:migrate:prod`. Commit the SQL, snapshots, journal, and `turso.production.json` together with schema changes. Repeating `migrate` applies only pending migrations.
+
+`pnpm run db:push` remains available for local prototyping. Databases created with the previous `push` workflow need a reviewed baseline before using SQL migrations; the included initial migration creates tables in an empty database. See [database migration procedures](docs/database-migrations.md) for fresh databases and existing-data adoption.
 
 ## Dependency maintenance
 
@@ -226,7 +234,7 @@ The official [shadcn skill](https://ui.shadcn.com/docs/skills) is vendored as re
 
 Vendored skill examples are excluded from lint, formatting, Fallow, and Tailwind class scanning, so instructions do not add application CSS or source-quality findings.
 
-`@shadcn/lint` is registered in Vite+'s Oxlint configuration through `lint.jsPlugins` in `vite.config.ts`. Following the official [setup instructions](https://github.com/shadcn-ui/lint/blob/main/SETUP.md), no new design-system rules are enabled during installation. Add selected `shadcn/*` entries to `lint.rules` when defining that policy. Existing lint scripts and component-source ignores remain in place.
+`@shadcn/lint` is registered in Vite+'s Oxlint configuration through `lint.jsPlugins` in `vite.config.ts`. `shadcn/no-raw-colors` and `shadcn/no-unknown-classes` are enabled as errors: application code uses theme color tokens and classes supported by the installed Tailwind theme. The existing component-source ignores remain in place. Run `pnpm run lint` to enforce this policy; additional [design-system rules](https://github.com/shadcn-ui/lint#rules) can be added to `lint.rules` as needed.
 
 ### Dependency checks
 

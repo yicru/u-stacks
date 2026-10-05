@@ -189,4 +189,4 @@ server/modules/{name}/service.ts
 server/modules/{name}/service.test.ts
 ```
 
-生成後はDB schemaを追加し、上記の3箇所へmoduleを登録してから、migration、test、lintを実行する。
+生成後はDBスキーマを追加し、上記の3箇所へmoduleを登録する。`pnpm run db:generate`でSQLを生成して内容を確認し、`pnpm run db:migrate`でローカルDBへ適用する。その後、format、quality、buildを実行する。既存DBを引き継ぐ場合は[マイグレーション手順](../../docs/database-migrations.md)を確認する。

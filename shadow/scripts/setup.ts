@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { basename, join, relative, resolve } from 'node:path'
+import { pinProductionDatabase } from './production-database.ts'
 import {
   findCloudflareCredentialEnvironmentVariable,
   isNamedCloudflareProfile,
@@ -88,9 +89,12 @@ console.log('✨ Worktree local files have been registered.')
 console.log('✨ T3 Code worktree setup has been registered.')
 if (productionTursoConfigured) {
   console.log('✨ Production Turso environment variables have been set.')
+  console.log(
+    '✨ Production database hostname is pinned in turso.production.json.',
+  )
 } else {
   console.log(
-    'ℹ️ Production Turso setup was skipped. Configure .dev.vars.production before deploying.',
+    'ℹ️ Production Turso setup was skipped. Configure .dev.vars.production before deploying and turso.production.json before migrating.',
   )
 }
 if (cloudflareConfiguration) {
@@ -362,6 +366,10 @@ function writeTursoCredentials({
   databaseUrl,
   authToken,
 }: ReturnType<typeof getTursoCredentials>): void {
+  pinProductionDatabase(
+    databaseUrl,
+    new URL('../turso.production.json', import.meta.url),
+  )
   writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
 }
 
@@ -373,7 +381,7 @@ function configureTursoManually(): boolean {
   const databaseUrl = askRequired('TURSO_DATABASE_URL:', '')
   const authToken = askRequired('TURSO_AUTH_TOKEN:', '')
 
-  writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
+  writeTursoCredentials({ databaseUrl, authToken })
 
   return true
 }

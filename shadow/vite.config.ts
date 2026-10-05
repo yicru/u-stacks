@@ -34,6 +34,10 @@ export default defineConfig({
   },
   lint: {
     jsPlugins: ['@shadcn/lint'],
+    rules: {
+      'shadcn/no-raw-colors': 'error',
+      'shadcn/no-unknown-classes': 'error',
+    },
     ignorePatterns: [
       'src/components/ui',
       '.agents/skills',
