@@ -1,0 +1,3 @@
+interface:
+  display_name: "Effect TypeScript"
+  short_description: "Effect v4 implementation and upgrades with Bun"

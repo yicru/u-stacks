@@ -85,6 +85,8 @@ shadow/
 
 ## EFFECT DOCUMENTATION
 
+For Effect implementation, review, setup, or upgrades, read `.agents/skills/effect-ts/SKILL.md`. This project skill adapts the official Effect skill for Bun and stable v4 and is included in standalone template checkouts.
+
 Before writing Effect code, read `node_modules/effect/AGENTS.md` completely and follow its links when required. For APIs it does not cover, inspect `node_modules/effect/src` and the installed package's exports and types. HTTP modules retain `@stability unstable` annotations; use the installed version's documentation.
 
 ## SHADCN DOCUMENTATION

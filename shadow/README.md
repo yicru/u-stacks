@@ -15,7 +15,7 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 - Cloudflare Workers deployment via the cf CLI (beta)
 - shadcn/ui on the Base UI registry
 - Questionnaire and chat primitives, with Base UI Toast notifications
-- Official shadcn project skill included in `.agents/skills/shadcn`
+- Effect and shadcn project skills included in `.agents/skills`
 - Tailwind CSS v4
 - Vitest integration, service, contract, and client tests
 - React Doctor diagnostics and Fallow structural quality gates
@@ -206,6 +206,10 @@ Do not create a broad API token during initial setup. If CI or release automatio
 Prepare `.dev.vars.production` before deploying or running `bun run db:migrate:prod`. Production migrations use `drizzle.production.config.ts`; local database commands never read production Turso credentials. `.dev.vars.production` is the only file uploaded with `--secrets-file`; `.cloudflare.json` is never uploaded as a Worker secret.
 
 ## Dependency maintenance
+
+### Effect project skill
+
+`.agents/skills/effect-ts` adapts the official [Effect skill](https://github.com/Effect-TS/skills) for Bun and stable Effect v4. It directs agents to the installed package's `AGENTS.md`, source, and exports, and uses `scripts/prepare-effect.mjs` when refreshing the optional upstream source mirror after an upgrade. The skill and upstream license are included as real files in standalone `degit` checkouts; `AGENTS.md` points agents to it. It becomes available on the next agent turn.
 
 ### shadcn UI
 
