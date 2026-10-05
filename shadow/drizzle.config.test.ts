@@ -40,21 +40,22 @@ describe('local Drizzle configuration', () => {
 })
 
 describe('production Drizzle configuration', () => {
-  test.each(['libsql://production.turso.io', 'https://production.turso.io/'])(
-    'accepts the pinned authenticated endpoint %s',
-    async (url) => {
-      const directory = await createFixture({ hostname: 'production.turso.io' })
-      const result = readProductionConfig(directory, {
-        TURSO_DATABASE_URL: url,
-      })
+  test.each([
+    'libsql://production.turso.io',
+    'https://production.turso.io/',
+    'libsql://PRODUCTION.TURSO.IO.',
+  ])('accepts the pinned authenticated endpoint %s', async (url) => {
+    const directory = await createFixture({ hostname: 'production.turso.io' })
+    const result = readProductionConfig(directory, {
+      TURSO_DATABASE_URL: url,
+    })
 
-      expect(result.status, result.stderr).toBe(0)
-      expect(JSON.parse(result.stdout)).toEqual({
-        url,
-        authToken: 'fixture-token',
-      })
-    },
-  )
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual({
+      url,
+      authToken: 'fixture-token',
+    })
+  })
 
   test.each([
     [
@@ -71,6 +72,14 @@ describe('production Drizzle configuration', () => {
     ],
     ['localhost', { TURSO_DATABASE_URL: 'libsql://LOCALHOST.' }],
     ['a loopback address', { TURSO_DATABASE_URL: 'libsql://127.0.0.1' }],
+    ['IPv6 loopback', { TURSO_DATABASE_URL: 'libsql://[::1]' }],
+    ['an encoded hostname', { TURSO_DATABASE_URL: 'libsql://%6cocalhost' }],
+    ['a port', { TURSO_DATABASE_URL: 'libsql://production.turso.io:8080' }],
+    ['a path', { TURSO_DATABASE_URL: 'libsql://production.turso.io/tasks' }],
+    [
+      'a fragment',
+      { TURSO_DATABASE_URL: 'libsql://production.turso.io#tasks' },
+    ],
     [
       'a query credential',
       {

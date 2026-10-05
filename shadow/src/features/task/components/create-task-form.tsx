@@ -1,7 +1,7 @@
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { useForm } from '@tanstack/react-form'
 import { useRouter } from '@tanstack/react-router'
-import { z } from 'zod'
+import { TaskCreateBody } from '@shared/api/task'
 import { toast } from '@/components/ui/toast'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Add01Icon } from '@hugeicons/core-free-icons'
@@ -15,9 +15,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { apiClient } from '@/lib/api-client'
 
-const formSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-})
+const formSchema = Schema.toStandardSchemaV1(TaskCreateBody)
 
 export function CreateTaskForm() {
   const router = useRouter()

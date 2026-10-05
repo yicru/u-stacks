@@ -1,27 +1,33 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { z } from 'zod'
+import { Schema, SchemaTransformation } from 'effect'
 
-const productionTarget = z.object({ hostname: z.string().min(1) })
-const remoteEndpoint = z.object({
-  protocol: z.enum(['libsql:', 'https:']),
-  hostname: z
-    .string()
-    .min(1)
-    .toLowerCase()
-    .transform((hostname) => hostname.replace(/\.$/, ''))
-    .refine(
-      (hostname) =>
-        !/^(localhost|.*\.localhost|\[::1\]|127\..*|0\.0\.0\.0)$/.test(
-          hostname,
+const productionTarget = Schema.fromJsonString(
+  Schema.Struct({ hostname: Schema.NonEmptyString }),
+)
+const remoteEndpoint = Schema.Struct({
+  protocol: Schema.Literals(['libsql:', 'https:']),
+  hostname: Schema.String.pipe(
+    Schema.decodeTo(
+      Schema.NonEmptyString.check(
+        Schema.makeFilter(
+          (hostname) =>
+            !/^(localhost|.*\.localhost|\[::1\]|127\..*|0\.0\.0\.0)$/.test(
+              hostname,
+            ) && !hostname.includes('%'),
         ),
-    )
-    .refine((hostname) => !hostname.includes('%')),
-  username: z.literal(''),
-  password: z.literal(''),
-  port: z.literal(''),
-  pathname: z.enum(['', '/']),
-  search: z.literal(''),
-  hash: z.literal(''),
+      ),
+      SchemaTransformation.transform({
+        decode: (hostname) => hostname.toLowerCase().replace(/\.$/, ''),
+        encode: (hostname) => hostname,
+      }),
+    ),
+  ),
+  username: Schema.Literal(''),
+  password: Schema.Literal(''),
+  port: Schema.Literal(''),
+  pathname: Schema.Literals(['', '/']),
+  search: Schema.Literal(''),
+  hash: Schema.Literal(''),
 })
 
 export function pinProductionDatabase(
@@ -57,8 +63,9 @@ export function productionDatabaseCredentials(targetPath: URL): {
 
 function readProductionDatabaseHostname(targetPath: URL): string {
   try {
-    return productionTarget.parse(JSON.parse(readFileSync(targetPath, 'utf-8')))
-      .hostname
+    return Schema.decodeUnknownSync(productionTarget)(
+      readFileSync(targetPath, 'utf-8'),
+    ).hostname
   } catch {
     throw new Error(
       'Pin a valid production database hostname in turso.production.json before migrating.',
@@ -68,7 +75,8 @@ function readProductionDatabaseHostname(targetPath: URL): string {
 
 function remoteDatabaseHostname(databaseUrl: string): string {
   try {
-    return remoteEndpoint.parse(new URL(databaseUrl)).hostname
+    const endpoint = Schema.decodeUnknownSync(Schema.URLFromString)(databaseUrl)
+    return Schema.decodeUnknownSync(remoteEndpoint)(endpoint).hostname
   } catch {
     throw new Error(
       'Production Turso URL must be a remote libsql:// or https:// endpoint without credentials, port, path, query, or fragment.',

@@ -26,7 +26,9 @@ const TaskPath = Schema.Struct({
 })
 
 export const TaskCreateBody = Schema.Struct({
-  title: Schema.String.check(Schema.isMinLength(1)),
+  title: Schema.String.check(
+    Schema.isMinLength(1, { message: 'Title is required' }),
+  ),
   done: Schema.optionalKey(Schema.Boolean),
 })
 export type TaskCreateBody = typeof TaskCreateBody.Type

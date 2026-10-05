@@ -414,8 +414,8 @@ async function createSetupFixture(targetDirectory?: string): Promise<string> {
   await mkdir(directory, { recursive: true })
   await mkdir(join(directory, 'node_modules'), { recursive: true })
   await symlink(
-    join(ROOT, 'node_modules/zod'),
-    join(directory, 'node_modules/zod'),
+    join(ROOT, 'node_modules/effect'),
+    join(directory, 'node_modules/effect'),
     'dir',
   )
 
