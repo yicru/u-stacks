@@ -66,7 +66,7 @@ u-stacks/
 | Lint        | Biome 2.1.4       | Biome 1.9.4         | oxlint + oxfmt                      |
 | Path alias  | `@/*` `@server/*` | `~/*`               | `@/*` `@server/*` `@shared/*` `#/*` |
 | Test        | None              | None                | Vitest                              |
-| Icon        | lucide-react      | N/A (Mantine)       | @hugeicons/react                    |
+| Icon        | lucide-react      | N/A (Mantine)       | @tabler/icons-react                 |
 | Form        | react-hook-form   | mantine-form        | field.tsx (RHF non-dependent)       |
 | Env mgmt    | dotenvx           | .env                | dotenvx                             |
 
@@ -79,7 +79,7 @@ u-stacks/
 - ORM split: tails/shadow=Drizzle (Turso/libSQL), sonic=Prisma (PostgreSQL)
 - shadow uses the pnpm version pinned in its `packageManager` field
 - dotenvx used for environment management in tails (`npm run deploy:*`) and shadow (`pnpm run deploy`)
-- Icon library split: tails=lucide-react, sonic=Mantine built-in, shadow=@hugeicons/react
+- Icon library split: tails=lucide-react, sonic=Mantine built-in, shadow=@tabler/icons-react
 
 ## ANTI-PATTERNS
 

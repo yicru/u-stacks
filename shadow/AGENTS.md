@@ -78,7 +78,7 @@ shadow/
 - Data fetching: TanStack Router loaders plus `router.invalidate()`
 - Toolchain: Vite+ 1.0 with TypeScript 7, oxlint, oxfmt, React Doctor, and Fallow
 - Tests: Vitest 5 via `vite-plus/test` beside contracts, services, handler, and client
-- Icons: `@hugeicons/react` and `@hugeicons/core-free-icons`
+- Icons: named components from `@tabler/icons-react`; use `stroke` for line width
 - Class names: `cn` package, re-exported by `src/lib/utils.ts`
 - Notifications: `toast.add()` from `src/components/ui/toast.tsx`; mount `Toaster` once in the root layout
 - Date display: `src/lib/date.ts` `formatDateTime()`
@@ -92,7 +92,7 @@ Before writing Effect code, read `node_modules/effect/AGENTS.md` completely and 
 
 ## SHADCN DOCUMENTATION
 
-Before working on shadcn UI, read `.agents/skills/shadcn/SKILL.md` and the relevant linked rules. This project skill is stored inside the template so a standalone `degit` checkout keeps its instructions and references. Run the CLI with `pnpm exec shadcn` from the application directory; this template uses Base UI and Hugeicons.
+Before working on shadcn UI, read `.agents/skills/shadcn/SKILL.md` and the relevant linked rules. This project skill is stored inside the template so a standalone `degit` checkout keeps its instructions and references. Run the CLI with `pnpm exec shadcn` from the application directory; this template uses Base UI and Tabler Icons.
 
 `@shadcn/lint` runs `shadcn/no-raw-colors` and `shadcn/no-unknown-classes` as errors through `lint.rules` in `vite.config.ts`. Application classes must use declared theme colors and classes that the installed Tailwind can generate. Preserve the existing component-source ignores.
 

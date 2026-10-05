@@ -3,8 +3,7 @@ import { useForm } from '@tanstack/react-form'
 import { useRouter } from '@tanstack/react-router'
 import { TaskCreateBody } from '@shared/api/task'
 import { toast } from '@/components/ui/toast'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Add01Icon } from '@hugeicons/core-free-icons'
+import { IconPlus } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
 import {
   Field,
@@ -94,12 +93,13 @@ export function CreateTaskForm() {
               <Button
                 disabled={isSubmitting}
                 type="submit"
+                aria-label="Add task"
                 className="h-10 gap-1.5 px-4 shadow-xs"
               >
-                <HugeiconsIcon
-                  icon={Add01Icon}
-                  strokeWidth={2}
+                <IconPlus
+                  stroke={2}
                   data-icon="inline-start"
+                  aria-hidden="true"
                 />
                 <span className="hidden sm:inline-block font-medium">
                   Add Task

@@ -13,7 +13,7 @@ Shadow is designed for edge-first applications with a runtime-validated API cont
 - Generated `HttpApiClient` for type-safe browser calls
 - Drizzle ORM with Turso / libSQL
 - Cloudflare Workers deployment via the cf CLI (beta)
-- shadcn/ui on the Base UI registry
+- shadcn/ui on the Base UI registry with Tabler Icons
 - Questionnaire and chat primitives, with Base UI Toast notifications
 - Effect and shadcn project skills included in `.agents/skills`
 - Tailwind CSS v4

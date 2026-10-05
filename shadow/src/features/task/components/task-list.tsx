@@ -3,8 +3,7 @@ import { useRouter } from '@tanstack/react-router'
 import { useTransition } from 'react'
 import { toast } from '@/components/ui/toast'
 import { cva } from 'class-variance-authority'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Delete02Icon, TaskDone01Icon } from '@hugeicons/core-free-icons'
+import { IconTrash, IconClipboardCheck } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -93,10 +92,10 @@ function EmptyTaskList() {
     <Empty className="mt-6 rounded-xl border border-dashed bg-transparent py-16">
       <EmptyHeader>
         <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted/50">
-          <HugeiconsIcon
-            icon={TaskDone01Icon}
+          <IconClipboardCheck
             className="size-6 text-muted-foreground"
-            strokeWidth={1.5}
+            stroke={1.5}
+            aria-hidden="true"
           />
         </div>
         <EmptyTitle className="text-balance text-lg font-medium">
@@ -153,7 +152,7 @@ function TaskListItem({
         onClick={() => onDelete(task.id)}
         className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
       >
-        <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} className="size-4" />
+        <IconTrash stroke={2} aria-hidden="true" />
       </Button>
     </div>
   )
