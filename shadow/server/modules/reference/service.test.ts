@@ -1,12 +1,14 @@
 import { createClient } from '@libsql/client'
 import { drizzle } from 'drizzle-orm/libsql'
 import { eq } from 'drizzle-orm'
-import { Effect, Layer, Schema } from 'effect'
+import { Effect, Layer } from 'effect'
+import { FetchHttpClient } from 'effect/http'
+import { HttpApiClient } from 'effect/http-api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Database } from '@server/db'
 import * as schema from '@server/db/schema'
 import { DatabaseTracing } from '@server/db/tracing'
-import { ReferencePage } from '@shared/api/reference'
+import { ReferenceApi } from '@shared/api/reference'
 import { makeReferenceHandler } from './handler'
 import { ReferenceService } from './service'
 
@@ -121,12 +123,27 @@ describe('reference data patterns', () => {
     expect(result).toEqual({ total: 0, open: 0, done: 0 })
   })
 
+  it.each(['invalid', ''])(
+    'fails with a typed service error for malformed cursor %j before accessing the database',
+    async (cursor) => {
+      const execute = vi.spyOn(client, 'execute')
+      const error = await Effect.runPromise(
+        Effect.flatMap(ReferenceService, (reference) =>
+          reference.page({ limit: 2, cursor }),
+        ).pipe(Effect.provide(service), Effect.flip),
+      )
+      expect(error).toMatchObject({ code: 'INTERNAL_ERROR' })
+      expect(execute).not.toHaveBeenCalled()
+    },
+  )
+
   it('validates cursor, page size and lookup bounds before accessing the database', async () => {
     const api = makeReferenceHandler(service)
     const execute = vi.spyOn(client, 'execute')
     try {
       const requests = [
         new Request('http://localhost/api/reference/tasks?cursor=invalid'),
+        new Request('http://localhost/api/reference/tasks?cursor='),
         new Request('http://localhost/api/reference/tasks?limit=0'),
         new Request('http://localhost/api/reference/tasks?limit=21'),
         new Request('http://localhost/api/reference/lookup', {
@@ -155,25 +172,30 @@ describe('reference data patterns', () => {
     }
   })
 
-  it('round-trips cursor and date values through the HTTP contract', async () => {
+  it('round-trips an undefined cursor, cursor pages and dates through the generated HTTP client', async () => {
     const api = makeReferenceHandler(service)
-    try {
-      const firstResponse = await api.handler(
-        new Request('http://localhost/api/reference/tasks?limit=2'),
-      )
-      expect(firstResponse.status).toBe(200)
-      const first = Schema.decodeUnknownSync(ReferencePage)(
-        await firstResponse.json(),
-      )
-      expect(first.data[0]?.createdAt).toEqual(new Date('2026-10-03T00:00:00Z'))
-      const response = await api.handler(
-        new Request(
-          `http://localhost/api/reference/tasks?limit=2&cursor=${encodeURIComponent(first.nextCursor ?? '')}`,
+    const fetch: typeof globalThis.fetch = (input, init) =>
+      api.handler(new Request(input, init))
+    const client = Effect.runSync(
+      HttpApiClient.make(ReferenceApi, { baseUrl: 'http://localhost' }).pipe(
+        Effect.provide(
+          FetchHttpClient.layer.pipe(
+            Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetch)),
+          ),
         ),
+      ),
+    )
+    try {
+      const first = await Effect.runPromise(
+        client.reference.getPage({ query: { cursor: undefined, limit: 2 } }),
       )
-      expect(response.status).toBe(200)
-      const second = Schema.decodeUnknownSync(ReferencePage)(
-        await response.json(),
+      expect(first.data.map((task) => task.id)).toEqual(['latest', 'new-z'])
+      expect(first.data[0]?.createdAt).toEqual(new Date('2026-10-03T00:00:00Z'))
+      expect(first.nextCursor).not.toBeNull()
+      const second = await Effect.runPromise(
+        client.reference.getPage({
+          query: { cursor: first.nextCursor ?? undefined, limit: 2 },
+        }),
       )
       expect(second.data.map((task) => task.id)).toEqual(['new-a', 'older'])
       expect(second.nextCursor).toBeNull()

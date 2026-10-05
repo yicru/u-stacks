@@ -14,6 +14,8 @@ SSR calls the service directly through a ManagedRuntime. Browser loaders use the
 
 The page endpoint fetches at most `limit + 1` rows and returns a next cursor only when another row exists. It does not calculate total counts or use OFFSET. The existing `(created_at, id)` index supports the descending order and tuple comparison. The cursor contains both values, so timestamp ties and deletion of the anchor do not require an extra lookup. It is URL-safe base64 JSON validated by Effect Schema, not a signed credential or a snapshot of the database. Keep the sort values immutable and include any filters or sort version in the cursor when extending this pattern.
 
+The cursor fields use `Schema.optional`: both an absent property and an explicit `undefined` represent the first page, and the HTTP client omits the query parameter. The API rejects invalid supplied strings with 400 before any database access. The service uses an Effect-returning decoder so a malformed cursor from a direct service caller is logged and becomes a typed `InternalError` instead of an unhandled defect.
+
 The lookup endpoint accepts at most 20 IDs, deduplicates them, retrieves them with one `IN` query, and restores requested order. Missing IDs are reported separately. This is the same bulk-fetch pattern to use before joining parent results to related rows, instead of issuing one query per displayed item. The limits bound response and parameter sizes; they do not impose a waiting-time ceiling.
 
 The summary intentionally scans the task population to compute exact totals; it illustrates secondary data whose cost grows with the database. The cursor page stays bounded, but this aggregate does not. Check `db.reference.page`, `db.reference.summary`, and `db.reference.lookup` spans, plus `db.query` logs. Compare request counts, data size, CPU and latency before choosing an aggregate endpoint, streaming, or batching. Small local fixtures do not establish production latency gains.
@@ -21,6 +23,12 @@ The summary intentionally scans the task population to compute exact totals; it 
 ## Mutation refresh
 
 After an update, the reference screen awaits `router.invalidate({ sync: true, filter })`. The filter includes both `/reference` and `/`, since both own task data, while excluding unrelated routes. `sync` waits for the critical loader data; deferred summary data may still be pending. Keep dependent summary/detail routes in the filter as the application grows. Independent page state is reset by the cursor key instead of a synchronization effect.
+
+State updates after an awaited action are wrapped in another `startTransition`, following [React's async Transition guidance](https://react.dev/reference/react/useTransition#react-doesnt-treat-my-state-update-after-await-as-a-transition).
+
+## Contract tests
+
+Service tests use an actual in-memory SQLite database. The HTTP round-trip test connects `HttpApiClient` to the real Web handler through `FetchHttpClient.Fetch`, exercising query encoding, middleware, SQL and response decoding together. It covers an explicit `undefined` cursor, the next page and decoded dates without a test-only production wrapper. Incoming invalid-request tests use raw HTTP requests because a generated client rejects invalid input before sending it.
 
 ## Remove the reference implementation
 

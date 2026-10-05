@@ -110,9 +110,9 @@ function useReferenceActions(onRefresh: () => Promise<void>) {
           }),
         )
         await onRefresh()
-        setLookup(undefined)
+        startTransition(() => setLookup(undefined))
       } catch {
-        setError('Could not update the task. Try again.')
+        startTransition(() => setError('Could not update the task. Try again.'))
       }
     })
   }
@@ -122,15 +122,16 @@ function useReferenceActions(onRefresh: () => Promise<void>) {
       setError(undefined)
       try {
         const { referenceClient } = await import('./client')
-        setLookup(
-          await Effect.runPromise(
-            referenceClient.reference.lookupTasks({
-              payload: { ids: [...selected] },
-            }),
-          ),
+        const result = await Effect.runPromise(
+          referenceClient.reference.lookupTasks({
+            payload: { ids: [...selected] },
+          }),
         )
+        startTransition(() => setLookup(result))
       } catch {
-        setError('Could not load the selected tasks. Try again.')
+        startTransition(() =>
+          setError('Could not load the selected tasks. Try again.'),
+        )
       }
     })
   }

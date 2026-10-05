@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Result, Schema } from 'effect'
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
 import { InternalError } from '../errors'
 import { SchemaErrorMiddleware } from '../schema-error-middleware'
@@ -15,26 +15,26 @@ const Cursor = Schema.StringFromBase64Url.pipe(
   ),
 )
 
-export const decodeCursor = Schema.decodeUnknownSync(Cursor)
+export const decodeCursor = Schema.decodeUnknownEffect(Cursor)
 export const encodeCursor = Schema.encodeSync(Cursor)
 
 const CursorToken = Schema.String.check(
   Schema.isMaxLength(512),
   Schema.makeFilter(
-    (value) => Schema.decodeUnknownResult(Cursor)(value)._tag === 'Success',
+    (value) => Result.isSuccess(Schema.decodeUnknownResult(Cursor)(value)),
     { message: 'Invalid task cursor' },
   ),
 )
 
 export const ReferenceSearch = Schema.Struct({
-  cursor: Schema.optionalKey(CursorToken),
+  cursor: Schema.optional(CursorToken),
   mode: Schema.Literals(['stream', 'parallel']).pipe(
     Schema.withDecodingDefaultTypeKey(Effect.succeed('stream')),
   ),
 })
 
 const ReferencePageQuery = Schema.Struct({
-  cursor: Schema.optionalKey(CursorToken),
+  cursor: Schema.optional(CursorToken),
   limit: Schema.NumberFromString.check(
     Schema.isInt(),
     Schema.isBetween({ minimum: 1, maximum: 20 }),
@@ -42,7 +42,7 @@ const ReferencePageQuery = Schema.Struct({
 })
 export type ReferencePageQuery = typeof ReferencePageQuery.Type
 
-export const ReferencePage = Schema.Struct({
+const ReferencePage = Schema.Struct({
   data: Schema.Array(Task),
   nextCursor: Schema.NullOr(CursorToken),
 })

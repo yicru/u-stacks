@@ -51,7 +51,7 @@ function ReferencePage() {
       }}
       onNext={(cursor) => {
         void navigate({
-          search: { mode: search.mode, ...(cursor ? { cursor } : {}) },
+          search: { ...search, cursor },
         })
       }}
       onRefresh={() =>

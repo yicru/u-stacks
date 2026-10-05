@@ -18,6 +18,10 @@ type SummaryResult =
   | { readonly ok: true; readonly data: ReferenceSummary }
   | { readonly ok: false }
 
+function pageQuery(search: typeof ReferenceSearch.Type): ReferencePageQuery {
+  return { cursor: search.cursor, limit: 10 }
+}
+
 async function readData(
   readers: Readers,
   mode: typeof ReferenceSearch.Type.mode,
@@ -40,10 +44,7 @@ export const loadReference = createIsomorphicFn()
   .server(async (search: typeof ReferenceSearch.Type, signal: AbortSignal) => {
     const { loadPage, loadSummary, loadOverview } =
       await import('@server/modules/reference/runtime')
-    const query = {
-      limit: 10,
-      ...(search.cursor ? { cursor: search.cursor } : {}),
-    }
+    const query = pageQuery(search)
     return readData(
       {
         page: () => loadPage(query, signal),
@@ -55,10 +56,7 @@ export const loadReference = createIsomorphicFn()
   })
   .client(async (search: typeof ReferenceSearch.Type, signal: AbortSignal) => {
     const { referenceClient } = await import('./client')
-    const query: ReferencePageQuery = {
-      limit: 10,
-      ...(search.cursor ? { cursor: search.cursor } : {}),
-    }
+    const query = pageQuery(search)
     return readData(
       {
         page: () =>

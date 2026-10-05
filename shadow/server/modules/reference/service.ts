@@ -43,7 +43,13 @@ export class ReferenceService extends Context.Service<
       const page = Effect.fn('ReferenceService.page')(function* (
         query: ReferencePageQuery,
       ) {
-        const cursor = query.cursor ? decodeCursor(query.cursor) : undefined
+        const cursor =
+          query.cursor !== undefined
+            ? yield* decodeCursor(query.cursor).pipe(
+                Effect.tapError((cause) => Effect.logError(cause)),
+                Effect.mapError(() => InternalError.makeInternal()),
+              )
+            : undefined
         const rows = yield* run('reference.page', () =>
           database
             .select({ ...getTableColumns(tasks) })
