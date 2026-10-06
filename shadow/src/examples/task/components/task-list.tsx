@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/empty'
 import { formatDateTime } from '@/lib/date'
 import { apiClient } from '@/lib/api-client'
-import type { Task } from '@shared/api/task'
+import type { Task } from '@shared/api/examples/task'
 import { measureTaskMutation } from '../measure-mutation'
 
 interface TaskListProps {
@@ -46,7 +46,10 @@ function useTaskActions() {
       try {
         await measureTaskMutation(name, async () => {
           await operation()
-          await router.invalidate({ sync: true })
+          await router.invalidate({
+            filter: (match) => match.routeId === '/',
+            sync: true,
+          })
         })
         if (messages.success) {
           toast.add({ title: messages.success, type: 'success' })

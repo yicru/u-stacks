@@ -1,8 +1,8 @@
 import { makeApiHandler } from './handler'
 import { recordApiRequest, traceApiRequest } from './observability'
-import { memoMap, TaskServiceProduction } from './runtime'
+import { memoMap, ApiServicesProduction } from './runtime'
 
-const api = makeApiHandler(TaskServiceProduction, {
+const api = makeApiHandler(ApiServicesProduction, {
   memoMap,
   onRequest: recordApiRequest,
 })

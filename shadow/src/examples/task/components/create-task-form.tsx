@@ -1,7 +1,7 @@
 import { Effect, Schema } from 'effect'
 import { useForm } from '@tanstack/react-form'
 import { useRouter } from '@tanstack/react-router'
-import { TaskCreateBody } from '@shared/api/task'
+import { TaskCreateBody } from '@shared/api/examples/task'
 import { toast } from '@/components/ui/toast'
 import { IconPlus } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
@@ -35,7 +35,10 @@ export function CreateTaskForm() {
               payload: { title: value.title },
             }),
           )
-          await router.invalidate({ sync: true })
+          await router.invalidate({
+            filter: (match) => match.routeId === '/',
+            sync: true,
+          })
         })
         form.reset()
         toast.add({ title: 'Task created', type: 'success' })

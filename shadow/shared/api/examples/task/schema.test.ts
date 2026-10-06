@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
-import { Task, TaskCreateBody, TaskUpdateBody } from './task'
+import { Task, TaskCreateBody, TaskUpdateBody } from './index'
 
 describe('Task payloads', () => {
   it('requires a non-empty title when creating a task', () => {

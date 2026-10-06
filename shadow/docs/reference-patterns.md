@@ -1,14 +1,24 @@
-# Disposable reference patterns
+# Task reference implementation
 
-Open `/reference` after starting the app. It reads the existing tasks table; add tasks on `/` when the database is empty. Selecting a task does not change it. Complete and Reopen update the same tasks shown on `/`.
+The task module is the template's single disposable reference implementation. Open `/` to create, complete and delete tasks. Its Data loading control switches between **Basic list**, **List first** and **Wait for both** on the same page and database. The latter two modes also show cursor navigation, exact totals and grouped retrieval. Selecting a task does not change it.
+
+The shared contract lives in `shared/api/examples/task/`, its server implementation and table in `server/examples/task/`, and its browser UI and loaders in `src/examples/task/`. Each `examples` directory owns disposable implementations and their tests. Application modules use `shared/api/{name}.ts`, `server/modules/{name}/` and `src/features/{name}/`; the module generator keeps those application paths. `TaskApi`, `TaskService` and `src/lib/api-client.ts` serve every mode through the same `/api/*` bridge.
+
+| Mode          | URL               | Initial browser requests                           | Database behavior                                                 |
+| ------------- | ----------------- | -------------------------------------------------- | ----------------------------------------------------------------- |
+| Basic list    | `/`               | `GET /api/tasks`                                   | Page-number list and total count in one transactional batch       |
+| List first    | `/?mode=stream`   | `GET /api/tasks/page` and `GET /api/tasks/summary` | Independent reads; the list can render before the summary         |
+| Wait for both | `/?mode=parallel` | `GET /api/tasks/overview`                          | Independent reads with concurrency 2; the response waits for both |
+
+All modes use the same create and update endpoints. Delete is available in Basic list. Grouped lookup uses `POST /api/tasks/lookup`; IDs are not individual HTTP requests.
 
 ## Data loading
 
-**List first** starts the page and summary independently in the browser. The route awaits only the page, returning the summary Promise to TanStack Router's `Await` component. The client renders the list before the summary resolves. A summary failure displays an inline error without hiding the list; a page failure uses the route error UI. There is no synthetic delay or request timeout. With small data, both reads may finish before any placeholder is visible.
+**List first** starts the page and summary independently in the browser. The route awaits only the page, returning the summary Promise to TanStack Router's `Await` component. The client renders the list before the summary resolves. A summary failure displays an inline error without hiding the list; a page failure uses the route error UI. Navigation cancellation has its own summary state. When returning to cached list data, the canceled summary shows the loading placeholder until the refreshed loader replaces it. There is no synthetic delay or request timeout. With small data, both reads may finish before any placeholder is visible.
 
-**Wait for both** uses the overview endpoint. `ReferenceService.overview` runs page and summary reads with `Effect.all` and concurrency 2. They use two database requests, without a dependency between them; this is different from the sequential transaction inside libSQL `batch`. Browser navigation makes one aggregate HTTP API request. These independent reads are not a transaction and can observe different database states during concurrent writes. Use a transaction or batch when consistency between the results matters.
+**Wait for both** uses the overview endpoint. `TaskService.overview` runs page and summary reads with `Effect.all` and concurrency 2. They use two database requests, without a dependency between them; this is different from the sequential transaction inside libSQL `batch`. Browser navigation makes one aggregate HTTP API request. These independent reads are not a transaction and can observe different database states during concurrent writes. Use a transaction or batch when consistency between the results matters.
 
-Pages remain client-rendered. Loaders use `createClientOnlyFn` and the private Effect HTTP client; API handlers use the existing Database Layer and shared memo map. Loader abort signals propagate to the Effect runner; obsolete browser reads are canceled. Already-submitted SQL is not rolled back by cancellation. No results are cached globally across users or requests.
+Pages remain client-rendered. Loaders use `createClientOnlyFn` and the shared Effect HTTP client; API handlers use the existing Database Layer and shared memo map. Loader abort signals propagate to the Effect runner; obsolete browser reads are canceled. Already-submitted SQL is not rolled back by cancellation. No results are cached globally across users or requests.
 
 ## Cursor pagination and grouped retrieval
 
@@ -18,11 +28,11 @@ The cursor fields use `Schema.optional`: both an absent property and an explicit
 
 The lookup endpoint accepts at most 20 IDs, deduplicates them, retrieves them with one `IN` query, and restores requested order. Missing IDs are reported separately. This is the same bulk-fetch pattern to use before joining parent results to related rows, instead of issuing one query per displayed item. The limits bound response and parameter sizes; they do not impose a waiting-time ceiling.
 
-The summary intentionally scans the task population to compute exact totals; it illustrates secondary data whose cost grows with the database. The cursor page stays bounded, but this aggregate does not. Check `db.reference.page`, `db.reference.summary`, and `db.reference.lookup` spans, plus `db.query` logs. Compare request counts, data size, CPU and latency before choosing an aggregate endpoint, streaming, or batching. Small local fixtures do not establish production latency gains.
+The summary intentionally scans the task population to compute exact totals; it illustrates secondary data whose cost grows with the database. The cursor page stays bounded, but this aggregate does not. Check `db.tasks.page`, `db.tasks.summary`, and `db.tasks.lookup` spans, plus `db.query` logs. Compare request counts, data size, CPU and latency before choosing an aggregate endpoint, streaming, or batching. Small local fixtures do not establish production latency gains.
 
 ## Mutation refresh
 
-After an update, the reference screen awaits `router.invalidate({ sync: true, filter })`. The filter includes both `/reference` and `/`, since both own task data, while excluding unrelated routes. `sync` waits for the critical loader data; deferred summary data may still be pending. Keep dependent summary/detail routes in the filter as the application grows. Independent page state is reset by the cursor key instead of a synchronization effect.
+After a create, update or delete, the task screen awaits `router.invalidate({ sync: true, filter })`. The filter includes `/`, which owns every task loading mode, and excludes unrelated routes. `sync` waits for the critical loader data; deferred summary data may still be pending. Keep dependent summary/detail routes in the filter as the application grows. Independent page state is reset by the cursor key instead of a synchronization effect.
 
 State updates after an awaited action are wrapped in another `startTransition`, following [React's async Transition guidance](https://react.dev/reference/react/useTransition#react-doesnt-treat-my-state-update-after-await-as-a-transition).
 
@@ -32,18 +42,35 @@ Service tests use an actual in-memory SQLite database. The HTTP round-trip test 
 
 ## Remove the reference implementation
 
-Delete these five paths from the application directory:
+Remove the complete task example when starting your application, including the CRUD that was present before the advanced patterns:
 
 ```text
-src/routes/reference.tsx
-src/routes/api/reference/
-src/features/reference/
-server/modules/reference/
-shared/api/reference/
+src/examples/
+server/examples/
+shared/api/examples/
 ```
 
-Then run `pnpm run build` to regenerate the route tree and `pnpm run quality`. No API registry, runtime registration, package dependency, environment binding or database migration needs to be removed. Keep `server/handler.ts` and `server/http-api-handler.ts`: they still serve the original application and own shared API composition and metrics/error handling. The optional README section and this guide can also be deleted.
+Replace `src/routes/index.tsx` with your own landing page. For a minimal SPA placeholder, use:
 
-The reference uses a compiler-separated server implementation in its own API route. Server imports do not reach browser code. The normal `/api/*` bridge, AppApi, existing task services and database schema remain independent of the reference.
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/')({
+  component: () => <main>Ready for your application</main>,
+})
+```
+
+Remove the task registration at these four composition points:
+
+1. `shared/api/index.ts`: remove the `TaskApi` import and `.add(TaskApi)`; keep the health check and schema-error middleware.
+2. `server/handler.ts`: remove the `TaskHandlersLive` import and make `ApiHandlersLive` use only `HealthCheckHandlersLive`. The factory derives its service requirements from this Layer, so its signature needs no task-specific edit.
+3. `server/runtime.ts`: remove the task and database imports, keep the shared memo map, and set `ApiServicesProduction = Layer.empty`. Keep `server/index.ts` and its request metrics unchanged.
+4. `server/db/schema.ts`: remove the task table re-export. Use `export {}` until your own module exports a table here.
+
+Task-specific contract, HTTP, client and loader tests are inside the three `examples` directories and are removed with them. Shared HTTP and client tests stay in `server/http-api-handler.test.ts` and `src/lib/api-client.test.ts`; they cover response normalization, metrics isolation and privacy, cancellation, failing metrics sinks, and client URL/error behavior without task dependencies. The generated route tree is regenerated by `pnpm run build`; do not edit it manually. Keep `src/start.ts`, the root route's `ssr: false` and `noindex`, the normal `/api/*` bridge, and the shared HTTP handler and observability code.
+
+For a fresh application that has never applied migrations, remove `drizzle/` as well and generate the initial migrations after defining your own tables. The included SQL and snapshots belong to the task example. For a database that has already applied them, preserve its migration history and data; generate and review an additive migration when replacing its tables. Removing source files does not authorize dropping production tables. See [database migration procedures](database-migrations.md).
+
+Run `pnpm run build`, `pnpm run lint` and `pnpm run test` after removing the example. The shared database Layer, pagination and date helpers remain available for your own modules; Fallow can report them as unused until the replacement modules consume them. Remove unused infrastructure and dependencies if your application does not need them, then run `pnpm run quality`. Remove the README's reference section and this guide once they no longer apply.
 
 See [TanStack deferred data loading](https://tanstack.com/router/latest/docs/guide/deferred-data-loading), [SQLite cursor queries](https://www.sqlite.org/rowvalue.html#scrolling_window_queries), and [Drizzle IN queries](https://orm.drizzle.team/docs/operators#inarray).

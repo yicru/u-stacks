@@ -11,7 +11,8 @@ shadow/
 │   ├── errors.ts                  # Shared error Schema.Class values
 │   ├── schema-error-middleware.ts # HttpApiSchemaError → ValidationError
 │   ├── pagination.ts              # Shared pagination query and metadata schemas
-│   └── {resource}.ts              # Request, response, params, and payload schemas
+│   ├── examples/task/             # Disposable task contract and tests
+│   └── {resource}.ts or {resource}/ # Application request and response schemas
 ├── src/
 │   ├── routes/
 │   │   ├── __root.tsx             # Root layout
@@ -22,7 +23,8 @@ shadow/
 │   │   ├── api-client.ts          # HttpApiClient generated from AppApi
 │   │   └── utils.ts               # cn() helper
 │   ├── components/ui/             # shadcn/ui Base UI variant
-│   └── features/                  # Domain UI components
+│   ├── examples/task/             # Disposable task UI, loaders and tests
+│   └── features/                  # Application domain UI components
 ├── server/
 │   ├── index.ts                   # Traced API entry
 │   ├── runtime.ts                 # Shared API service Layers and memo map
@@ -31,6 +33,7 @@ shadow/
 │   │   ├── index.ts               # Database Context.Service
 │   │   ├── live.ts                # Turso/Drizzle Layer
 │   │   └── schema.ts              # Drizzle tables
+│   ├── examples/task/             # Disposable task service, table and tests
 │   ├── modules/{name}/
 │   │   ├── handlers.ts            # HttpApiBuilder.group
 │   │   ├── service.ts             # Context.Service + Live Layer
@@ -53,7 +56,7 @@ shadow/
 | Implement endpoint  | `server/modules/`                        | Handler and service Layers               |
 | Compose runtime     | `server/handler.ts`, `server/runtime.ts` | Web handler and shared production Layers |
 | Add UI component    | `src/components/ui/`                     | `pnpm exec shadcn add <name>`            |
-| DB schema           | `server/db/schema.ts`                    | Drizzle SQLite dialect                   |
+| DB schema           | `server/db/schema.ts`                    | Table exports; task owns its schema      |
 | Module rules        | `server/modules/README.md`               | Registration and testing workflow        |
 
 ## CONVENTIONS
@@ -96,6 +99,10 @@ Before working on shadcn UI, read `.agents/skills/shadcn/SKILL.md` and the relev
 
 `@shadcn/lint` runs `shadcn/no-raw-colors` and `shadcn/no-unknown-classes` as errors through `lint.rules` in `vite.config.ts`. Application classes must use declared theme colors and classes that the installed Tailwind can generate. Preserve the existing component-source ignores.
 
+## TASK REFERENCE
+
+The task example is the single disposable reference implementation, including CRUD and advanced loading patterns on `/`. Its contract, server and browser code live under `shared/api/examples/task/`, `server/examples/task/` and `src/examples/task/`, with their tests. Before changing its loading modes, moving its files, or removing the example, read [task reference implementation](docs/reference-patterns.md). New application modules use the normal registration workflow below.
+
 ## MODULE WORKFLOW
 
 ```bash
@@ -115,15 +122,15 @@ After generation:
 
 1. Add the Drizzle table to `server/db/schema.ts`
 2. Add the API group to `AppApi` in `shared/api/index.ts`
-3. Add the handler Layer and service requirement to `server/handler.ts`
-4. Provide the service Live Layer in `server/index.ts`
+3. Add the handler Layer to `server/handler.ts`; its service requirements are inferred
+4. Provide the service Live Layer in `server/runtime.ts`
 5. Generate and review SQL with `db:generate`, apply local migrations with `db:migrate`, then run format, quality, and build
 
 ## IMPORTANT CONSTRAINTS
 
 ### Shared contract boundary
 
-Browser implementations use `shared/api` and `src/lib/api-client.ts`. Server runtime imports belong in API route bridges such as `src/routes/api/$.ts` or the compiler-separated server implementation in `src/routes/api/reference/$.ts`. Page loaders use `createClientOnlyFn` and must not import server runtime modules.
+Browser implementations use `shared/api` and `src/lib/api-client.ts`. Server runtime imports belong in the API route bridge `src/routes/api/$.ts`. Page loaders use `createClientOnlyFn` and must not import server runtime modules.
 
 ### Cloudflare environment
 

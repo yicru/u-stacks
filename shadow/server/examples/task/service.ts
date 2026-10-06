@@ -1,5 +1,6 @@
 import { Database } from '@server/db'
-import { tasks } from '@server/db/schema'
+import { tasks } from './schema'
+import { makeTaskQueries } from './queries'
 import { DatabaseTracing } from '@server/db/tracing'
 import { toPaginatedResponse, withPagination } from '@server/lib/pagination'
 import { InternalError, NotFoundError } from '@shared/api/errors'
@@ -7,13 +8,28 @@ import type {
   TaskCreateBody,
   TaskListQuery,
   TaskListResponse,
+  TaskLookup,
+  TaskOverview,
+  TaskPage,
+  TaskPageQuery,
+  TaskSummary,
   TaskResponse,
   TaskUpdateBody,
-} from '@shared/api/task'
+} from '@shared/api/examples/task'
 import { count, desc, eq, getTableColumns } from 'drizzle-orm'
 import { Context, Effect, Layer } from 'effect'
 
 export interface TaskServiceShape {
+  readonly page: (
+    query: TaskPageQuery,
+  ) => Effect.Effect<TaskPage, InternalError>
+  readonly summary: () => Effect.Effect<TaskSummary, InternalError>
+  readonly overview: (
+    query: TaskPageQuery,
+  ) => Effect.Effect<TaskOverview, InternalError>
+  readonly lookup: (
+    ids: ReadonlyArray<string>,
+  ) => Effect.Effect<TaskLookup, InternalError>
   readonly list: (
     query: TaskListQuery,
   ) => Effect.Effect<TaskListResponse, InternalError>
@@ -35,7 +51,7 @@ export interface TaskServiceShape {
 export class TaskService extends Context.Service<
   TaskService,
   TaskServiceShape
->()('@server/modules/task/TaskService') {
+>()('@server/examples/task/TaskService') {
   static readonly Live = Layer.effect(
     TaskService,
     Effect.gen(function* () {
@@ -49,6 +65,7 @@ export class TaskService extends Context.Service<
         )
 
       return {
+        ...makeTaskQueries(database, run),
         list: Effect.fn('TaskService.list')(function* (query: TaskListQuery) {
           return yield* run('tasks.list', async () => {
             const selection = database

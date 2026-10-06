@@ -1,11 +1,11 @@
-import { Await, Link } from '@tanstack/react-router'
+import { Await } from '@tanstack/react-router'
 import { Effect } from 'effect'
 import { useState, useTransition } from 'react'
 import type {
-  ReferenceLookup,
-  ReferencePage,
-  ReferenceSearch,
-} from '@shared/api/reference'
+  TaskLookup,
+  TaskPage,
+  TaskSearch,
+} from '@shared/api/examples/task'
 import { apiClient } from '@/lib/api-client'
 import { formatDateTime } from '@/lib/date'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -22,29 +22,29 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import type { Task } from '@shared/api/task'
-import type { loadReference } from './load'
+import type { Task } from '@shared/api/examples/task'
+import type { loadTasks } from './load-tasks'
+import { measureTaskMutation } from './measure-mutation'
 
-type Mode = typeof ReferenceSearch.Type.mode
-type Data = Awaited<ReturnType<typeof loadReference>>
+type Data = Exclude<Awaited<ReturnType<typeof loadTasks>>, { mode: 'basic' }>
 
-interface ReferenceViewProps {
+interface TaskCursorViewProps {
   data: Data
-  search: typeof ReferenceSearch.Type
-  onMode: (mode: Mode) => void
+  search: typeof TaskSearch.Type
   onNext: (cursor: string | undefined) => void
   onRefresh: () => Promise<void>
 }
 
 function SummaryPanel({ summary }: Pick<Data, 'summary'>) {
+  const placeholder = (
+    <Skeleton className="h-16 w-full" aria-label="Loading task summary" />
+  )
   return (
     <Card>
       <CardHeader>
@@ -54,17 +54,9 @@ function SummaryPanel({ summary }: Pick<Data, 'summary'>) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Await
-          promise={summary}
-          fallback={
-            <Skeleton
-              className="h-16 w-full"
-              aria-label="Loading task summary"
-            />
-          }
-        >
+        <Await promise={summary} fallback={placeholder}>
           {(result) =>
-            result.ok ? (
+            result.status === 'ready' ? (
               <dl className="grid grid-cols-3 gap-4 tabular-nums">
                 <div>
                   <dt className="text-sm text-muted-foreground">Total</dt>
@@ -79,6 +71,8 @@ function SummaryPanel({ summary }: Pick<Data, 'summary'>) {
                   <dd className="text-2xl font-medium">{result.data.done}</dd>
                 </div>
               </dl>
+            ) : result.status === 'cancelled' ? (
+              placeholder
             ) : (
               <Alert variant="destructive">
                 <AlertTitle>Summary unavailable</AlertTitle>
@@ -94,8 +88,8 @@ function SummaryPanel({ summary }: Pick<Data, 'summary'>) {
   )
 }
 
-function useReferenceActions(onRefresh: () => Promise<void>) {
-  const [lookup, setLookup] = useState<ReferenceLookup>()
+function useCursorActions(onRefresh: () => Promise<void>) {
+  const [lookup, setLookup] = useState<TaskLookup>()
   const [error, setError] = useState<string>()
   const [pending, startTransition] = useTransition()
 
@@ -103,13 +97,15 @@ function useReferenceActions(onRefresh: () => Promise<void>) {
     startTransition(async () => {
       setError(undefined)
       try {
-        await Effect.runPromise(
-          apiClient.tasks.updateTask({
-            params: { id: task.id },
-            payload: { done: !task.done },
-          }),
-        )
-        await onRefresh()
+        await measureTaskMutation('update', async () => {
+          await Effect.runPromise(
+            apiClient.tasks.updateTask({
+              params: { id: task.id },
+              payload: { done: !task.done },
+            }),
+          )
+          await onRefresh()
+        })
         startTransition(() => setLookup(undefined))
       } catch {
         startTransition(() => setError('Could not update the task. Try again.'))
@@ -121,9 +117,8 @@ function useReferenceActions(onRefresh: () => Promise<void>) {
     startTransition(async () => {
       setError(undefined)
       try {
-        const { referenceClient } = await import('./client')
         const result = await Effect.runPromise(
-          referenceClient.reference.lookupTasks({
+          apiClient.tasks.lookupTasks({
             payload: { ids: [...selected] },
           }),
         )
@@ -149,7 +144,7 @@ function ActionError({ message }: { message: string | undefined }) {
   )
 }
 
-function ReferenceTaskRow({
+function CursorTaskRow({
   task,
   selected,
   pending,
@@ -170,14 +165,14 @@ function ReferenceTaskRow({
       className="gap-3"
     >
       <Checkbox
-        id={`reference-${task.id}`}
+        id={`task-select-${task.id}`}
         aria-label={`Select ${task.title}`}
         checked={selected}
         disabled={pending}
         onCheckedChange={onSelect}
       />
       <FieldLabel
-        htmlFor={`reference-${task.id}`}
+        htmlFor={`task-select-${task.id}`}
         className="min-w-0 flex-1 truncate"
       >
         {task.title}
@@ -199,7 +194,7 @@ function ReferenceTaskRow({
   )
 }
 
-function ReferenceTaskList({
+function CursorTaskList({
   tasks,
   selected,
   pending,
@@ -218,21 +213,16 @@ function ReferenceTaskList({
         <EmptyHeader>
           <EmptyTitle>No tasks on this page</EmptyTitle>
           <EmptyDescription>
-            Add a task or return to the first page.
+            Add a task above or return to the first page.
           </EmptyDescription>
         </EmptyHeader>
-        <EmptyContent>
-          <Button render={<Link to="/" />} nativeButton={false}>
-            Add a task
-          </Button>
-        </EmptyContent>
       </Empty>
     )
   }
   return (
     <FieldGroup className="gap-3">
       {tasks.map((task) => (
-        <ReferenceTaskRow
+        <CursorTaskRow
           key={task.id}
           task={task}
           selected={selected.has(task.id)}
@@ -245,7 +235,7 @@ function ReferenceTaskList({
   )
 }
 
-function LookupResults({ lookup }: { lookup: ReferenceLookup | undefined }) {
+function LookupResults({ lookup }: { lookup: TaskLookup | undefined }) {
   if (!lookup) return null
   return (
     <section
@@ -298,18 +288,18 @@ function PageNavigation({
   )
 }
 
-function ReferenceRows({
+function CursorRows({
   page,
   onRefresh,
   onNext,
 }: {
-  page: ReferencePage
+  page: TaskPage
   onRefresh: () => Promise<void>
   onNext: (cursor: string | undefined) => void
 }) {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const { lookup, error, pending, toggleTask, lookupSelected } =
-    useReferenceActions(onRefresh)
+    useCursorActions(onRefresh)
   const select = (id: string, checked: boolean) => {
     setSelected((ids) => {
       const next = new Set(ids)
@@ -329,7 +319,7 @@ function ReferenceRows({
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ActionError message={error} />
-        <ReferenceTaskList
+        <CursorTaskList
           tasks={page.data}
           selected={selected}
           pending={pending}
@@ -359,56 +349,21 @@ function ReferenceRows({
   )
 }
 
-export function ReferenceView({
+export function TaskCursorView({
   data,
   search,
-  onMode,
   onNext,
   onRefresh,
-}: ReferenceViewProps) {
+}: TaskCursorViewProps) {
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-12 sm:px-6">
-      <header className="flex flex-col gap-3">
-        <Button
-          variant="link"
-          render={<Link to="/" />}
-          nativeButton={false}
-          className="self-start"
-        >
-          Back to tasks
-        </Button>
-        <h1 className="text-3xl font-medium text-balance">
-          Reference patterns
-        </h1>
-        <p className="text-muted-foreground text-pretty">
-          Cursor pagination, independent data loading, and grouped task
-          retrieval.
-        </p>
-      </header>
-      <FieldGroup>
-        <Field>
-          <FieldLabel id="reference-loading-mode">Data loading</FieldLabel>
-          <ToggleGroup
-            aria-labelledby="reference-loading-mode"
-            value={[search.mode]}
-            variant="outline"
-            onValueChange={(values) => {
-              const value = values[0]
-              if (value === 'stream' || value === 'parallel') onMode(value)
-            }}
-          >
-            <ToggleGroupItem value="stream">List first</ToggleGroupItem>
-            <ToggleGroupItem value="parallel">Wait for both</ToggleGroupItem>
-          </ToggleGroup>
-        </Field>
-      </FieldGroup>
-      <ReferenceRows
-        key={search.cursor ?? 'first'}
+    <>
+      <CursorRows
+        key={`${search.mode}:${search.cursor ?? 'first'}`}
         page={data.page}
         onRefresh={onRefresh}
         onNext={onNext}
       />
       <SummaryPanel summary={data.summary} />
-    </main>
+    </>
   )
 }

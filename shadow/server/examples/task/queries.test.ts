@@ -8,14 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Database } from '@server/db'
 import * as schema from '@server/db/schema'
 import { DatabaseTracing } from '@server/db/tracing'
-import { ReferenceApi } from '@shared/api/reference'
-import { makeReferenceHandler } from './handler'
-import { ReferenceService } from './service'
+import { AppApi } from '@shared/api'
+import { makeApiHandler } from '@server/handler'
+import { TaskService } from './service'
 
-describe('reference data patterns', () => {
+describe('task data patterns', () => {
   let client: ReturnType<typeof createClient>
   let database: Database['Service']
-  let service: Layer.Layer<ReferenceService>
+  let service: Layer.Layer<TaskService>
 
   beforeEach(async () => {
     client = createClient({ url: ':memory:' })
@@ -38,7 +38,7 @@ describe('reference data patterns', () => {
       },
       { id: 'latest', title: 'Latest', createdAt: latest, updatedAt: latest },
     ])
-    service = ReferenceService.Live.pipe(
+    service = TaskService.Live.pipe(
       Layer.provide(Layer.succeed(Database, database)),
     )
   })
@@ -48,7 +48,7 @@ describe('reference data patterns', () => {
   it('keeps cursor pages stable across tied timestamps, new tasks and a removed anchor', async () => {
     const execute = vi.spyOn(client, 'execute')
     const first = await Effect.runPromise(
-      Effect.flatMap(ReferenceService, (reference) =>
+      Effect.flatMap(TaskService, (reference) =>
         reference.page({ limit: 2 }),
       ).pipe(Effect.provide(service)),
     )
@@ -65,7 +65,7 @@ describe('reference data patterns', () => {
     })
 
     const second = await Effect.runPromise(
-      Effect.flatMap(ReferenceService, (reference) =>
+      Effect.flatMap(TaskService, (reference) =>
         reference.page({ limit: 2, cursor: first.nextCursor ?? undefined }),
       ).pipe(Effect.provide(service)),
     )
@@ -76,7 +76,7 @@ describe('reference data patterns', () => {
   it('retrieves unique IDs in input order with one database request and reports missing tasks', async () => {
     const execute = vi.spyOn(client, 'execute')
     const result = await Effect.runPromise(
-      Effect.flatMap(ReferenceService, (reference) =>
+      Effect.flatMap(TaskService, (reference) =>
         reference.lookup(['older', 'latest', 'older', 'missing']),
       ).pipe(Effect.provide(service)),
     )
@@ -91,7 +91,7 @@ describe('reference data patterns', () => {
     const bothStarted = new Promise<void>((resolve) => {
       release = resolve
     })
-    const concurrent = ReferenceService.Live.pipe(
+    const concurrent = TaskService.Live.pipe(
       Layer.provide(Layer.succeed(Database, database)),
       Layer.provide(
         Layer.succeed(DatabaseTracing, {
@@ -105,7 +105,7 @@ describe('reference data patterns', () => {
       ),
     )
     const result = await Effect.runPromise(
-      Effect.flatMap(ReferenceService, (reference) =>
+      Effect.flatMap(TaskService, (reference) =>
         reference.overview({ limit: 2 }),
       ).pipe(Effect.provide(concurrent)),
     )
@@ -116,7 +116,7 @@ describe('reference data patterns', () => {
   it('returns zero totals for an empty database', async () => {
     await database.delete(schema.tasks)
     const result = await Effect.runPromise(
-      Effect.flatMap(ReferenceService, (reference) => reference.summary()).pipe(
+      Effect.flatMap(TaskService, (reference) => reference.summary()).pipe(
         Effect.provide(service),
       ),
     )
@@ -128,7 +128,7 @@ describe('reference data patterns', () => {
     async (cursor) => {
       const execute = vi.spyOn(client, 'execute')
       const error = await Effect.runPromise(
-        Effect.flatMap(ReferenceService, (reference) =>
+        Effect.flatMap(TaskService, (reference) =>
           reference.page({ limit: 2, cursor }),
         ).pipe(Effect.provide(service), Effect.flip),
       )
@@ -138,20 +138,20 @@ describe('reference data patterns', () => {
   )
 
   it('validates cursor, page size and lookup bounds before accessing the database', async () => {
-    const api = makeReferenceHandler(service)
+    const api = makeApiHandler(service)
     const execute = vi.spyOn(client, 'execute')
     try {
       const requests = [
-        new Request('http://localhost/api/reference/tasks?cursor=invalid'),
-        new Request('http://localhost/api/reference/tasks?cursor='),
-        new Request('http://localhost/api/reference/tasks?limit=0'),
-        new Request('http://localhost/api/reference/tasks?limit=21'),
-        new Request('http://localhost/api/reference/lookup', {
+        new Request('http://localhost/api/tasks/page?cursor=invalid'),
+        new Request('http://localhost/api/tasks/page?cursor='),
+        new Request('http://localhost/api/tasks/page?limit=0'),
+        new Request('http://localhost/api/tasks/page?limit=21'),
+        new Request('http://localhost/api/tasks/lookup', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ ids: [] }),
         }),
-        new Request('http://localhost/api/reference/lookup', {
+        new Request('http://localhost/api/tasks/lookup', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -172,12 +172,12 @@ describe('reference data patterns', () => {
     }
   })
 
-  it('round-trips an undefined cursor, cursor pages and dates through the generated HTTP client', async () => {
-    const api = makeReferenceHandler(service)
+  it('serves cursor reads, aggregates and lookup through the same HTTP API as task writes', async () => {
+    const api = makeApiHandler(service)
     const fetch: typeof globalThis.fetch = (input, init) =>
       api.handler(new Request(input, init))
     const client = Effect.runSync(
-      HttpApiClient.make(ReferenceApi, { baseUrl: 'http://localhost' }).pipe(
+      HttpApiClient.make(AppApi, { baseUrl: 'http://localhost' }).pipe(
         Effect.provide(
           FetchHttpClient.layer.pipe(
             Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetch)),
@@ -187,18 +187,43 @@ describe('reference data patterns', () => {
     )
     try {
       const first = await Effect.runPromise(
-        client.reference.getPage({ query: { cursor: undefined, limit: 2 } }),
+        client.tasks.getTaskPage({ query: { cursor: undefined, limit: 2 } }),
       )
       expect(first.data.map((task) => task.id)).toEqual(['latest', 'new-z'])
       expect(first.data[0]?.createdAt).toEqual(new Date('2026-10-03T00:00:00Z'))
       expect(first.nextCursor).not.toBeNull()
       const second = await Effect.runPromise(
-        client.reference.getPage({
+        client.tasks.getTaskPage({
           query: { cursor: first.nextCursor ?? undefined, limit: 2 },
         }),
       )
       expect(second.data.map((task) => task.id)).toEqual(['new-a', 'older'])
       expect(second.nextCursor).toBeNull()
+
+      const overview = await Effect.runPromise(
+        client.tasks.getTaskOverview({ query: { limit: 2 } }),
+      )
+      expect(overview.page.data.map((task) => task.id)).toEqual([
+        'latest',
+        'new-z',
+      ])
+      expect(overview.summary).toEqual({ total: 4, open: 3, done: 1 })
+      const lookup = await Effect.runPromise(
+        client.tasks.lookupTasks({
+          payload: { ids: ['older', 'missing', 'latest'] },
+        }),
+      )
+      expect(lookup.data.map((task) => task.id)).toEqual(['older', 'latest'])
+      expect(lookup.missingIds).toEqual(['missing'])
+
+      await Effect.runPromise(
+        client.tasks.updateTask({
+          params: { id: 'latest' },
+          payload: { done: true },
+        }),
+      )
+      const summary = await Effect.runPromise(client.tasks.getTaskSummary())
+      expect(summary).toEqual({ total: 4, open: 2, done: 2 })
     } finally {
       await api.dispose()
     }

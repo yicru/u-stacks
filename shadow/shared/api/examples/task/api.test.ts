@@ -1,19 +1,9 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { AppApi } from './index'
+import { AppApi } from '@shared/api'
 
 describe('AppApi', () => {
   it('declares the health check and task groups', () => {
     expect(Object.keys(AppApi.groups)).toEqual(['healthCheck', 'tasks'])
-  })
-
-  it('declares every existing task operation', () => {
-    expect(Object.keys(AppApi.groups.tasks.endpoints)).toEqual([
-      'getTasks',
-      'getTask',
-      'createTask',
-      'updateTask',
-      'deleteTask',
-    ])
   })
 
   it('keeps the existing methods and paths', () => {
