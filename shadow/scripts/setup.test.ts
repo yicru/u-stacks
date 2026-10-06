@@ -111,7 +111,7 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
     expect(credentials).toContain('TURSO_AUTH_TOKEN=fixture-token')
   })
 
-  test('keeps the CTA config formatter-compatible after renaming', async () => {
+  test('waits for interactive answers and keeps renamed configuration formatter-compatible', async () => {
     const directory = await createSetupFixture()
     const child = spawn(process.execPath, ['scripts/setup.ts'], {
       cwd: directory,
@@ -120,9 +120,34 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
     })
     const stderr: Buffer[] = []
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
-    child.stdin.end('consumer-app\nn\nn\n')
+    const answers = [
+      { prompt: 'Enter your app name', value: 'consumer-app' },
+      { prompt: 'Configure production Turso now?', value: 'n' },
+      { prompt: 'Configure Cloudflare deployment now?', value: 'n' },
+    ]
+    let transcript = ''
+    let answerIndex = 0
+    let answerTimer: ReturnType<typeof setTimeout> | undefined
+    child.stdout.on('data', (chunk: Buffer) => {
+      transcript += chunk.toString()
+      const answer = answers[answerIndex]
+      if (!answer || !transcript.includes(answer.prompt)) return
+      answerIndex += 1
+      answerTimer = setTimeout(() => {
+        if (child.stdin.destroyed) return
+        if (answerIndex === answers.length) {
+          child.stdin.end(`${answer.value}\n`)
+        } else {
+          child.stdin.write(`${answer.value}\n`)
+        }
+      }, 50)
+    })
 
-    const [exitCode] = (await once(child, 'exit')) as [number | null]
+    const [exitCode] = (await once(child, 'close')) as [number | null]
+    clearTimeout(answerTimer)
+    expect(Buffer.concat(stderr).toString()).toBe('')
+    expect(exitCode).toBe(0)
+    expect(answerIndex).toBe(answers.length)
     const ctaConfig = await readFile(join(directory, '.cta.json'), 'utf-8')
     const worktreeInclude = await readFile(
       join(directory, '.worktreeinclude'),
@@ -136,8 +161,6 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
       scripts: Array<Record<string, unknown>>
     }
 
-    expect(Buffer.concat(stderr).toString()).toBe('')
-    expect(exitCode).toBe(0)
     expect(ctaConfig).toContain('"projectName": "consumer-app"')
     expect(
       await readFile(join(directory, 'cloudflare.config.ts'), 'utf-8'),

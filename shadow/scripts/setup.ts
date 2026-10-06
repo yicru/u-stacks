@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, readSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { basename, join, relative, resolve } from 'node:path'
+import { createInterface } from 'node:readline'
 import { pinProductionDatabase } from './production-database.ts'
 import {
   findCloudflareCredentialEnvironmentVariable,
@@ -63,53 +64,65 @@ type CloudflareConfiguration = {
 const args = process.argv.slice(2).filter((arg) => !arg.endsWith('setup.ts'))
 const cliName = args[0]?.trim()
 const defaultAppName = toKebabCase(basename(ROOT)) || 'shadow'
+const promptInput = createInterface({
+  input: process.stdin,
+  terminal: false,
+  crlfDelay: Infinity,
+})
+const promptLines = promptInput[Symbol.asyncIterator]()
+promptInput.pause()
 
-const appNameInput = cliName ?? ask(`Enter your app name (${defaultAppName}):`)
-const appName = normalizeAppName(appNameInput, defaultAppName)
+try {
+  const appNameInput =
+    cliName ?? (await ask(`Enter your app name (${defaultAppName}):`))
+  const appName = normalizeAppName(appNameInput, defaultAppName)
 
-if (!appName) {
-  console.error('App name is required.')
-  process.exit(1)
-}
+  if (!appName) {
+    console.error('App name is required.')
+    process.exit(1)
+  }
 
-renameProject(appName)
-ensureSetupScript()
-updateReadme(appName)
-configureLocalTurso()
-const repositoryRoot = findRepositoryRoot()
-configureWorktreeIncludes(repositoryRoot)
-configureEffectSourceIgnore(repositoryRoot)
-configureT3Project(repositoryRoot)
+  renameProject(appName)
+  ensureSetupScript()
+  updateReadme(appName)
+  configureLocalTurso()
+  const repositoryRoot = findRepositoryRoot()
+  configureWorktreeIncludes(repositoryRoot)
+  configureEffectSourceIgnore(repositoryRoot)
+  configureT3Project(repositoryRoot)
 
-const productionTursoConfigured = configureProductionTurso(appName)
-const cloudflareConfiguration = configureCloudflareDeployment()
+  const productionTursoConfigured = await configureProductionTurso(appName)
+  const cloudflareConfiguration = await configureCloudflareDeployment()
 
-console.log(`✨ Project configured as "${appName}"`)
-console.log('✨ Local Turso dev server variables have been set.')
-console.log('✨ Worktree local files have been registered.')
-console.log('✨ T3 Code worktree setup has been registered.')
-if (productionTursoConfigured) {
-  console.log('✨ Production Turso environment variables have been set.')
-  console.log(
-    '✨ Production database hostname is pinned in turso.production.json.',
-  )
-} else {
-  console.log(
-    'ℹ️ Production Turso setup was skipped. Configure .dev.vars.production before deploying and turso.production.json before migrating.',
-  )
-}
-if (cloudflareConfiguration) {
-  const { profile, account } = cloudflareConfiguration
-  console.log(
-    `✨ Cloudflare profile "${profile}" is pinned to ${account.name} (${account.id}).`,
-  )
-  console.log(
-    'ℹ️ Cloudflare resources and API tokens were not created. Add bindings during development, then run `pnpm run cloudflare plan`.',
-  )
-} else {
-  console.log(
-    'ℹ️ Cloudflare setup was skipped; any existing deployment configuration was left unchanged.',
-  )
+  console.log(`✨ Project configured as "${appName}"`)
+  console.log('✨ Local Turso dev server variables have been set.')
+  console.log('✨ Worktree local files have been registered.')
+  console.log('✨ T3 Code worktree setup has been registered.')
+  if (productionTursoConfigured) {
+    console.log('✨ Production Turso environment variables have been set.')
+    console.log(
+      '✨ Production database hostname is pinned in turso.production.json.',
+    )
+  } else {
+    console.log(
+      'ℹ️ Production Turso setup was skipped. Configure .dev.vars.production before deploying and turso.production.json before migrating.',
+    )
+  }
+  if (cloudflareConfiguration) {
+    const { profile, account } = cloudflareConfiguration
+    console.log(
+      `✨ Cloudflare profile "${profile}" is pinned to ${account.name} (${account.id}).`,
+    )
+    console.log(
+      'ℹ️ Cloudflare resources and API tokens were not created. Add bindings during development, then run `pnpm run cloudflare plan`.',
+    )
+  } else {
+    console.log(
+      'ℹ️ Cloudflare setup was skipped; any existing deployment configuration was left unchanged.',
+    )
+  }
+} finally {
+  promptInput.close()
 }
 
 function configureLocalTurso(): void {
@@ -286,21 +299,21 @@ function isActivePattern(
   }, false)
 }
 
-function configureProductionTurso(projectName: string): boolean {
-  if (!confirm('Configure production Turso now? (y/N):', false)) {
+async function configureProductionTurso(projectName: string): Promise<boolean> {
+  if (!(await confirm('Configure production Turso now? (y/N):', false))) {
     return false
   }
 
-  if (!canConfigureTursoAutomatically()) {
+  if (!(await canConfigureTursoAutomatically())) {
     return configureTursoManually()
   }
 
-  const shouldCreateDatabase = confirm(
+  const shouldCreateDatabase = await confirm(
     'Create a new Turso database now? (Y/n):',
     true,
   )
   const defaultDatabaseName = toKebabCase(projectName) || 'shadow'
-  const databaseName = askRequired(
+  const databaseName = await askRequired(
     `Turso database name (${defaultDatabaseName}):`,
     defaultDatabaseName,
   )
@@ -308,7 +321,7 @@ function configureProductionTurso(projectName: string): boolean {
   return configureTursoWithCli(databaseName, shouldCreateDatabase)
 }
 
-function canConfigureTursoAutomatically(): boolean {
+async function canConfigureTursoAutomatically(): Promise<boolean> {
   if (hasCommand('turso')) {
     return ensureTursoLogin()
   }
@@ -317,12 +330,12 @@ function canConfigureTursoAutomatically(): boolean {
   return false
 }
 
-function configureTursoWithCli(
+async function configureTursoWithCli(
   databaseName: string,
   shouldCreateDatabase: boolean,
-): boolean {
+): Promise<boolean> {
   try {
-    createTursoDatabase(databaseName, shouldCreateDatabase)
+    await createTursoDatabase(databaseName, shouldCreateDatabase)
     writeTursoCredentials(getTursoCredentials(databaseName))
 
     return true
@@ -334,20 +347,20 @@ function configureTursoWithCli(
   }
 }
 
-function createTursoDatabase(
+async function createTursoDatabase(
   databaseName: string,
   shouldCreateDatabase: boolean,
-): void {
+): Promise<void> {
   if (!shouldCreateDatabase) {
     return
   }
 
-  const groupName = selectTursoGroup()
+  const groupName = await selectTursoGroup()
   const groupArgs = groupName
     ? ['--group', groupName]
     : [
         '--location',
-        askRequired(
+        await askRequired(
           `Turso location (${DEFAULT_TURSO_LOCATION}):`,
           DEFAULT_TURSO_LOCATION,
         ),
@@ -382,20 +395,20 @@ function writeTursoCredentials({
   writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
 }
 
-function configureTursoManually(): boolean {
-  if (!confirm('Enter Turso URL and token manually? (Y/n):', true)) {
+async function configureTursoManually(): Promise<boolean> {
+  if (!(await confirm('Enter Turso URL and token manually? (Y/n):', true))) {
     return false
   }
 
-  const databaseUrl = askRequired('TURSO_DATABASE_URL:', '')
-  const authToken = askRequired('TURSO_AUTH_TOKEN:', '')
+  const databaseUrl = await askRequired('TURSO_DATABASE_URL:', '')
+  const authToken = await askRequired('TURSO_AUTH_TOKEN:', '')
 
   writeTursoCredentials({ databaseUrl, authToken })
 
   return true
 }
 
-function selectTursoGroup(): string | null {
+async function selectTursoGroup(): Promise<string | null> {
   try {
     const groups = getTursoGroups()
 
@@ -420,11 +433,11 @@ function selectTursoGroup(): string | null {
   }
 }
 
-function selectGroupFromChoices(
+async function selectGroupFromChoices(
   groups: string[],
   manualOption: number,
-): string | null {
-  const answer = ask(
+): Promise<string | null> {
+  const answer = await ask(
     `Select a Turso group [1-${manualOption}] or type a group name directly (Enter to skip):`,
   )
   const selection = parseGroupSelection(answer, groups, manualOption)
@@ -475,8 +488,8 @@ function parseGroupIndex(
   return { kind: 'invalid' }
 }
 
-function askOptionalGroupName(): string | null {
-  const groupName = ask(
+async function askOptionalGroupName(): Promise<string | null> {
+  const groupName = await ask(
     'Enter Turso group name (leave blank to choose a location; Tokyo is the default):',
   )
 
@@ -502,14 +515,14 @@ function getTursoGroups(): string[] {
   return [...new Set(groups)]
 }
 
-function ensureTursoLogin(): boolean {
+async function ensureTursoLogin(): Promise<boolean> {
   if (isTursoAuthenticated()) {
     return true
   }
 
   console.log('ℹ️ You are not logged in to Turso.')
 
-  if (!requestTursoLogin()) {
+  if (!(await requestTursoLogin())) {
     return false
   }
 
@@ -521,8 +534,8 @@ function ensureTursoLogin(): boolean {
   return true
 }
 
-function requestTursoLogin(): boolean {
-  if (!confirm('Run `turso auth login` now? (Y/n):', true)) {
+async function requestTursoLogin(): Promise<boolean> {
+  if (!(await confirm('Run `turso auth login` now? (Y/n):', true))) {
     return false
   }
   return runTursoLogin()
@@ -584,8 +597,8 @@ function writeTursoEnv(
   writeFileSync(filePath, `${updated}\n`)
 }
 
-function configureCloudflareDeployment(): CloudflareConfiguration | null {
-  if (!confirm('Configure Cloudflare deployment now? (y/N):', false)) {
+async function configureCloudflareDeployment(): Promise<CloudflareConfiguration | null> {
+  if (!(await confirm('Configure Cloudflare deployment now? (y/N):', false))) {
     return null
   }
 
@@ -618,10 +631,10 @@ function prepareCfCommand(): string | null {
   return cfCommand
 }
 
-function configureCloudflareWithCf(
+async function configureCloudflareWithCf(
   cfCommand: string,
-): CloudflareConfiguration | null {
-  const configuration = resolveCloudflareConfiguration(cfCommand)
+): Promise<CloudflareConfiguration | null> {
+  const configuration = await resolveCloudflareConfiguration(cfCommand)
   if (!configuration) {
     return null
   }
@@ -630,11 +643,11 @@ function configureCloudflareWithCf(
   return configuration
 }
 
-function resolveCloudflareConfiguration(
+async function resolveCloudflareConfiguration(
   cfCommand: string,
-): CloudflareConfiguration | null {
+): Promise<CloudflareConfiguration | null> {
   const currentConfiguration = readStoredCloudflareConfiguration()
-  const profile = resolveCloudflareProfile(
+  const profile = await resolveCloudflareProfile(
     cfCommand,
     currentConfiguration?.profile,
   )
@@ -649,25 +662,25 @@ function resolveCloudflareConfiguration(
   )
 }
 
-function resolveCloudflareProfile(
+async function resolveCloudflareProfile(
   cfCommand: string,
   currentProfile?: string,
-): string | null {
-  const profile = askCloudflareProfile(currentProfile)
-  return ensureCloudflareProfile(cfCommand, profile) ? profile : null
+): Promise<string | null> {
+  const profile = await askCloudflareProfile(currentProfile)
+  return (await ensureCloudflareProfile(cfCommand, profile)) ? profile : null
 }
 
-function resolveCloudflareAccount(
+async function resolveCloudflareAccount(
   cfCommand: string,
   profile: string,
   currentAccountId?: string,
-): CloudflareConfiguration | null {
-  const accounts = getCloudflareAccountsWithRecovery(cfCommand, profile)
+): Promise<CloudflareConfiguration | null> {
+  const accounts = await getCloudflareAccountsWithRecovery(cfCommand, profile)
   if (!accounts) {
     return null
   }
 
-  const account = selectCloudflareAccount(accounts, currentAccountId)
+  const account = await selectCloudflareAccount(accounts, currentAccountId)
   return { profile, account }
 }
 
@@ -688,8 +701,8 @@ function resolveCfCommand(): string | null {
   return resolveCloudflareCommand(ROOT)
 }
 
-function askCloudflareProfile(currentProfile?: string): string {
-  const profile = askRequired(
+async function askCloudflareProfile(currentProfile?: string): Promise<string> {
+  const profile = await askRequired(
     cloudflareProfileQuestion(currentProfile),
     currentProfile || '',
   )
@@ -708,7 +721,10 @@ function cloudflareProfileQuestion(currentProfile?: string): string {
   return `Cloudflare cf profile name${suffix}:`
 }
 
-function ensureCloudflareProfile(cfCommand: string, profile: string): boolean {
+async function ensureCloudflareProfile(
+  cfCommand: string,
+  profile: string,
+): Promise<boolean> {
   const activation = activateCloudflareProfile(cfCommand, profile)
   if (activation.ok) {
     return true
@@ -718,10 +734,10 @@ function ensureCloudflareProfile(cfCommand: string, profile: string): boolean {
     `ℹ️ ${activation.detail || `Cloudflare profile "${profile}" is not available.`}`,
   )
   if (
-    !confirm(
+    !(await confirm(
       `Create or re-authenticate Cloudflare profile "${profile}" now? (Y/n):`,
       true,
-    )
+    ))
   ) {
     return false
   }
@@ -776,20 +792,20 @@ function activateCloudflareProfile(
   }
 }
 
-function getCloudflareAccountsWithRecovery(
+async function getCloudflareAccountsWithRecovery(
   cfCommand: string,
   profile: string,
-): CloudflareAccount[] | null {
+): Promise<CloudflareAccount[] | null> {
   const accounts = tryGetCloudflareAccounts(cfCommand, profile)
   if (accounts) {
     return accounts
   }
 
   if (
-    !confirm(
+    !(await confirm(
       `Re-authenticate Cloudflare profile "${profile}" now? (Y/n):`,
       true,
-    )
+    ))
   ) {
     return null
   }
@@ -835,10 +851,10 @@ function getCloudflareAccounts(
   return accounts
 }
 
-function selectCloudflareAccount(
+async function selectCloudflareAccount(
   accounts: CloudflareAccount[],
   currentAccountId?: string,
-): CloudflareAccount {
+): Promise<CloudflareAccount> {
   console.log('Available Cloudflare accounts:')
   accounts.forEach((account, index) => {
     console.log(`${index + 1}. ${account.name} (${account.id})`)
@@ -850,7 +866,7 @@ function selectCloudflareAccount(
   const defaultIndex = currentIndex >= 0 ? currentIndex + 1 : 1
 
   while (true) {
-    const answer = ask(
+    const answer = await ask(
       `Select a Cloudflare account [1-${accounts.length}] (${defaultIndex}):`,
     )
     const selectedAccount = resolveCloudflareAccountSelection(
@@ -1079,20 +1095,20 @@ function toKebabCase(value: string | null | undefined): string | undefined {
     .replace(/^-+|-+$/g, '')
 }
 
-function ask(question: string): string | null {
+async function ask(question: string): Promise<string | null> {
   process.stdout.write(`${question} `)
-  const bytes: number[] = []
-  const byte = Buffer.alloc(1)
-  while (readSync(process.stdin.fd, byte, 0, 1, null) > 0) {
-    if (byte[0] === 10) break
-    bytes.push(byte[0])
-  }
-  return bytes.length ? Buffer.from(bytes).toString('utf-8').trim() : null
+  promptInput.resume()
+  const line = await promptLines.next()
+  promptInput.pause()
+  return line.done ? null : line.value.trim() || null
 }
 
-function askRequired(question: string, fallback: string): string {
+async function askRequired(
+  question: string,
+  fallback: string,
+): Promise<string> {
   while (true) {
-    const answer = ask(question)
+    const answer = await ask(question)
     if (answer) {
       return answer
     }
@@ -1103,8 +1119,11 @@ function askRequired(question: string, fallback: string): string {
   }
 }
 
-function confirm(question: string, defaultValue: boolean): boolean {
-  const answer = ask(question)
+async function confirm(
+  question: string,
+  defaultValue: boolean,
+): Promise<boolean> {
+  const answer = await ask(question)
 
   if (!answer) {
     return defaultValue
