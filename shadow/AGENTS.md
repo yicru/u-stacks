@@ -97,6 +97,8 @@ Before writing Effect code, read `node_modules/effect/AGENTS.md` completely and 
 
 Before working on shadcn UI, read `.agents/skills/shadcn/SKILL.md` and the relevant linked rules. This project skill is stored inside the template so a standalone `degit` checkout keeps its instructions and references. Run the CLI with `pnpm exec shadcn` from the application directory; this template uses Base UI and Tabler Icons.
 
+In a monorepo, setup exposes application skills through relative links at the Git root and appends an application pointer to the root `AGENTS.md`. Existing skill entries are preserved; when setup reports a conflict, read the skills inside this application. Keep commands scoped to the application directory. T3 worktree actions are registered at the Git root by application path and updated by their matching command.
+
 `@shadcn/lint` runs `shadcn/no-raw-colors` and `shadcn/no-unknown-classes` as errors through `lint.rules` in `vite.config.ts`. Application classes must use declared theme colors and classes that the installed Tailwind can generate. Preserve the existing component-source ignores.
 
 ## TASK REFERENCE

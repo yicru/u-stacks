@@ -66,12 +66,15 @@ The task example on `/` is the single disposable reference implementation. Its U
 
 `pnpm run setup` updates the app name, prepares Turso, and optionally configures Cloudflare deployment.
 
+In an interactive terminal, setup uses Clack for styled prompts, arrow-key confirmation and selection, and masked token input. Press Enter to accept a default or Ctrl+C to cancel. Changes already saved before cancellation remain in place; setup does not roll them back. Piped input and terminals without interactive capabilities use plain line prompts, preserving scripted setup. Incomplete piped input exits with an error instead of waiting for missing answers.
+
 During setup you can:
 
 - rename the project
 - update the portless local app name
 - write the local Turso URL into `.dev.vars`
 - register `.dev.vars`, `.dev.vars.production`, and `.cloudflare.json` in `.worktreeinclude`
+- expose application skills at the Git root and register application instructions for monorepo agents
 - register the T3 Code worktree setup action in `t3.json`
 - optionally create a production Turso database or connect to an existing one
 - choose a Turso group from a detected list or enter one manually
@@ -85,7 +88,13 @@ Setup intentionally does not create Cloudflare resources or API tokens. Resource
 
 Setup writes `.worktreeinclude` at the Git repository root so ignored local files can be copied into Codex, Claude Code, and compatible worktrees. It registers `.dev.vars`, `.dev.vars.production`, and `.cloudflare.json`. In a monorepo, entries include the app's repository-relative directory, while a standalone app uses root-relative entries. Existing patterns are preserved and repeated setup is idempotent.
 
-Setup also creates or updates the Git root `t3.json` without removing existing project settings or scripts. Its worktree creation action calls a small runner with three ordered steps: apply `.worktreeinclude`, run `pnpm install --frozen-lockfile`, and prepare `.repos/effect` at the tag matching the installed Effect package. Each operation remains in its own helper script. The runner uses the Node.js, pnpm, and Git installations already required by the project, so no additional CLI is required. Included-file copying is limited to untracked files that are ignored by Git, skips symbolic links, and never overwrites an existing worktree file. Effect source setup preserves local changes instead of switching versions over them.
+When the application is nested in a Git repository, setup keeps skill files inside the application and creates relative directory links under the Git root `.agents/skills`. Codex sessions started at the repository root can discover these skills, and the links remain valid in Git worktrees. Existing skill directories, files and links are preserved; setup reports conflicts with the application skill path to use. Setup also appends one application-specific instruction to the root `AGENTS.md`, directing agents to read the application's instructions and run commands from its directory. Standalone applications retain their existing skill files and `AGENTS.md`.
+
+Setup also creates or updates the Git root `t3.json` without removing existing project settings or scripts. Worktree actions are named by the application's repository-relative path, such as `Setup task-management Worktree`, so multiple applications can coexist. Standalone actions use the app name. Repeated setup updates the action with the matching command; existing `Setup Shadow Worktree` actions migrate only when they refer to that application. When the application has no matching action, setup replaces the legacy `Apply .worktreeinclude` action only if its command is `git worktreeinclude apply`.
+
+Each worktree action calls the application's runner with three ordered steps: apply `.worktreeinclude`, run `pnpm install --frozen-lockfile` in the application, and prepare `.repos/effect` at the tag matching the installed Effect package. Each operation remains in its own helper script. The runner uses the Node.js, pnpm, and Git installations already required by the project, so no additional CLI is required. Included-file copying is limited to untracked files that are ignored by Git, skips symbolic links, and never overwrites an existing worktree file. Effect source setup preserves local changes instead of switching versions over them.
+
+Commit the generated root skill links, `AGENTS.md`, `t3.json` and `.worktreeinclude` with the application so new worktrees inherit the setup. Review the root files alongside the application changes.
 
 If the repository was already open in T3 Code, import the updated project scripts after setup.
 
