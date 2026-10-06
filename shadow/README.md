@@ -58,9 +58,9 @@ Open `https://my-app.localhost:1355` after the dev server starts. The template u
 
 Set `PORTLESS_PORT` to override the proxy port. For example, `PORTLESS_PORT=443 pnpm run dev` uses a URL without a port number, but port `443` must be available and may require `sudo` on macOS or Linux.
 
-## Reference Patterns
+## Task Reference
 
-Open `/reference` for disposable examples of cursor pagination, independent reads with bounded concurrency, streamed secondary data, bulk ID lookup, and selective refresh after mutations. The examples reuse the task database and existing dependencies. [Reference patterns](docs/reference-patterns.md) describes the tradeoffs and the five paths to delete when starting your own application.
+The task example on `/` is the single disposable reference implementation. Its UI, server and contract live in `src/examples/task/`, `server/examples/task/` and `shared/api/examples/task/`, including their tests. Switch between Basic list, List first and Wait for both to explore CRUD, cursor pagination, bounded parallel reads, deferred secondary data, bulk ID lookup and selective refresh. All modes share the same task API, service and database. [Task reference implementation](docs/reference-patterns.md) describes the tradeoffs and how to remove the entire example, including its schema and tests.
 
 ## Setup Flow
 
@@ -214,7 +214,7 @@ See the official [Wrangler migration guide](https://developers.cloudflare.com/cf
 
 The Worker uses compatibility date `2026-09-30`, matching the workerd release bundled with the pinned Vite plugin. Node.js compatibility is enabled by that date without an explicit flag. Logs are enabled, and traces sample 1% of requests. Review compatibility changes and verify the local Worker when updating the pinned Cloudflare toolchain.
 
-Worker placement targets Tokyo. New Turso databases default to `aws-ap-northeast-1` when no group is selected; setup shows existing group locations so you can select a Japan group. Native Cloudflare Custom spans record API and database operations without an additional SDK. The task page renders its initial data on the server, and later navigation uses the Effect HTTP client with cancellation and preload reuse. See [performance conventions](docs/performance.md) for tracing, region selection, query batching, indexes, and bounded concurrency.
+Worker placement targets Tokyo. New Turso databases default to `aws-ap-northeast-1` when no group is selected; setup shows existing group locations so you can select a Japan group. Native Cloudflare Custom spans record API and database operations without an additional SDK. The task page keeps all loading modes client-rendered and uses the Effect HTTP client with cancellation and preload reuse. See [performance conventions](docs/performance.md) for tracing, region selection, query batching, indexes, and bounded concurrency.
 
 Do not create a broad API token during initial setup. If CI or release automation is introduced later, create a separate account-scoped token at that point with only the resource write capabilities shown by `plan` plus Workers Scripts write for deployment, and keep it in the automation provider's secret store. The current local wrapper is intentionally named-profile-only; token-based automation should be added as a separate execution mode rather than placed in `.cloudflare.json` or `.dev.vars.production`.
 

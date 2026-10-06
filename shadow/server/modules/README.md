@@ -69,6 +69,8 @@ export class ProjectApi extends HttpApiGroup.make('projects').add(
 ) {}
 ```
 
+taskリファレンスはCRUDとカーソル・集計・一括取得を一つのgroupへまとめる。contractは`shared/api/examples/task/`、テーブルとserviceは`server/examples/task/`、画面は`src/examples/task/`が所有し、関連テストも同じ場所に置く。テーブルは`server/db/schema.ts`から再exportする。実アプリのmoduleと生成先には上記の通常パスを使う。[リファレンスと削除手順](../../docs/reference-patterns.md)を参照する。
+
 各resourceの`HttpApiGroup`を`shared/api/index.ts`へimportし、`AppApi`へ追加する。`index.ts`にはendpoint定義を置かない。すべてのpathは`AppApi.prefix('/api')`の配下になる。
 
 ## Handler
@@ -154,7 +156,7 @@ DB Promiseの失敗は`Effect.tryPromise`で捕捉し、外部contractのtyped e
 新しいmoduleは次の3箇所へ登録する。
 
 1. `shared/api/index.ts`の`AppApi`へAPI groupを追加
-2. `server/handler.ts`へhandler Layerを追加し、factoryが受け取るservice Layerの要件を拡張
+2. `server/handler.ts`へhandler Layerを追加し、factoryはhandler Layerからserviceの要件を導出する
 3. `server/runtime.ts`でservice Live Layerへ`DatabaseLive`と`CloudflareDatabaseTracing`を供給し、API handler間で同じLayerとmemo mapを使う
 
 browserはserver型をimportせず、`src/lib/api-client.ts`の`HttpApiClient`からgroup endpointを呼び出す。

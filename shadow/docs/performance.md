@@ -34,7 +34,7 @@ After deployment, open the Worker's Observability traces in the Cloudflare dashb
 
 ## Initial data and navigation
 
-The task page and reference page stay client-rendered. `src/start.ts` disables SSR by default, and the root route explicitly sets `ssr: false` for all child pages. The HTML shell renders only metadata, styles, and bootstrap scripts on the server; it does not run page loaders or query the database. Keep the `noindex` meta tag in that shell.
+The task reference page and all its loading modes stay client-rendered. `src/start.ts` disables SSR by default, and the root route explicitly sets `ssr: false` for all child pages. The HTML shell renders only metadata, styles, and bootstrap scripts on the server; it does not run page loaders or query the database. Keep the `noindex` meta tag in that shell.
 
 Page loaders use `createClientOnlyFn` and the Effect HTTP client in the browser. Do not opt pages into SSR or introduce server-side page data loading. API handlers reuse the production Layers and memo map in `server/runtime.ts`, including the database client. Pass `abortController.signal` to the Effect runner so interrupted navigation cancels client fetches. Cancellation does not roll back a database operation already submitted to libSQL.
 
