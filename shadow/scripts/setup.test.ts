@@ -3,9 +3,11 @@ import { once } from 'node:events'
 import {
   chmod,
   copyFile,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
+  readlink,
   rm,
   symlink,
   writeFile,
@@ -111,8 +113,156 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
     expect(credentials).toContain('TURSO_AUTH_TOKEN=fixture-token')
   })
 
-  test('keeps the CTA config formatter-compatible after renaming', async () => {
+  test('uses arrow-key account selection and masks manually entered tokens', async () => {
     const directory = await createSetupFixture()
+    const binaryDirectory = join(directory, 'bin')
+    await mkdir(binaryDirectory)
+    await writeFile(join(binaryDirectory, 'turso'), '#!/bin/sh\nexit 1\n')
+    await chmod(join(binaryDirectory, 'turso'), 0o755)
+    await writeCfStub(directory)
+
+    const result = await runInteractiveSetup(
+      directory,
+      [
+        { prompt: 'Enter your app name', value: 'consumer-app\r' },
+        { prompt: 'Configure production Turso now?', value: '\u001b[C\r' },
+        { prompt: 'Enter Turso URL and token manually?', value: '\r' },
+        {
+          prompt: 'TURSO_DATABASE_URL',
+          value: 'libsql://production.turso.io\r',
+        },
+        { prompt: 'TURSO_AUTH_TOKEN', value: 'interactive-fixture-token\r' },
+        { prompt: 'Configure Cloudflare deployment now?', value: '\u001b[C\r' },
+        { prompt: 'Cloudflare cf profile name', value: 'client-profile\r' },
+        { prompt: 'Select a Cloudflare account', value: '\u001b[B\r' },
+      ],
+      {
+        PATH: `${binaryDirectory}${delimiter}${process.env.PATH ?? ''}`,
+        SHADOW_SETUP_TEST_LOG: join(directory, 'cf.log'),
+      },
+    )
+
+    expect(result.stderr).toBe('')
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).not.toContain('interactive-fixture-token')
+    expect(
+      await readFile(join(directory, '.dev.vars.production'), 'utf-8'),
+    ).toContain('TURSO_AUTH_TOKEN=interactive-fixture-token')
+    expect(
+      JSON.parse(await readFile(join(directory, '.cloudflare.json'), 'utf-8')),
+    ).toEqual({
+      profile: 'client-profile',
+      accountId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    })
+  })
+
+  test.each([
+    { mode: 'cancel', keys: '\u0003' },
+    { mode: 'location', keys: '\r' },
+    { mode: 'group', keys: '\u001b[A\u001b[A\r' },
+  ])(
+    'handles interactive Turso group selection: $mode',
+    async ({ mode, keys }) => {
+      const directory = await createSetupFixture()
+      const binaryDirectory = join(directory, 'bin')
+      const commandLog = join(directory, 'turso.log')
+      await mkdir(binaryDirectory)
+      await writeFile(
+        join(binaryDirectory, 'turso'),
+        `#!/usr/bin/env node
+import { appendFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+appendFileSync(process.env.SHADOW_SETUP_TEST_LOG, args.join(' ') + '\\n')
+if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS\\namerica aws-us-east-1\\njapan aws-ap-northeast-1')
+if (args[0] === 'db' && args[1] === 'show') console.log('libsql://production.turso.io')
+if (args[0] === 'db' && args[1] === 'tokens') console.log('fixture-token')
+`,
+      )
+      await chmod(join(binaryDirectory, 'turso'), 0o755)
+
+      const result = await runInteractiveSetup(
+        directory,
+        [
+          { prompt: 'Enter your app name', value: '\r' },
+          { prompt: 'Configure production Turso now?', value: '\u001b[C\r' },
+          { prompt: 'Create a new Turso database now?', value: '\r' },
+          { prompt: 'Turso database name', value: '\r' },
+          { prompt: 'Select a Turso group', value: keys },
+          ...(mode === 'location'
+            ? [{ prompt: 'Turso location', value: '\r' }]
+            : []),
+          ...(mode === 'cancel'
+            ? []
+            : [
+                { prompt: 'Configure Cloudflare deployment now?', value: '\r' },
+              ]),
+        ],
+        {
+          PATH: `${binaryDirectory}${delimiter}${process.env.PATH ?? ''}`,
+          SHADOW_SETUP_TEST_LOG: commandLog,
+        },
+      )
+
+      expect(result.stderr).toBe('')
+      expect(result.stdout).not.toContain('Enter Turso URL and token manually?')
+      const commands = await readFile(commandLog, 'utf-8')
+      if (mode === 'cancel') {
+        expect(result.exitCode).toBe(1)
+        expect(result.stdout).toContain('Setup cancelled.')
+        expect(commands).not.toContain('db create')
+        await expect(
+          readFile(join(directory, '.dev.vars.production'), 'utf-8'),
+        ).rejects.toMatchObject({ code: 'ENOENT' })
+      } else {
+        expect(result.exitCode).toBe(0)
+        expect(commands).toContain(
+          mode === 'location'
+            ? '--location aws-ap-northeast-1 --wait'
+            : '--group japan --wait',
+        )
+        expect(
+          JSON.parse(
+            await readFile(join(directory, 'turso.production.json'), 'utf-8'),
+          ),
+        ).toEqual({ hostname: 'production.turso.io' })
+      }
+    },
+  )
+
+  test('exits when piped input ends before a required answer', async () => {
+    const directory = await createSetupFixture()
+    await writeCfStub(directory)
+    const child = spawn(
+      process.execPath,
+      ['scripts/setup.ts', 'consumer-app'],
+      {
+        cwd: directory,
+        env: withoutCloudflareCredentials(process.env),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
+    const stderr: Buffer[] = []
+    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
+    child.stdout.resume()
+    child.stdin.end('n\ny\n')
+
+    const [exitCode] = (await once(child, 'close')) as [number | null]
+
+    expect(exitCode).toBe(1)
+    expect(Buffer.concat(stderr).toString()).toContain(
+      'Input ended before setup completed.',
+    )
+    await expect(
+      readFile(join(directory, '.cloudflare.json'), 'utf-8'),
+    ).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  test('waits for interactive answers and keeps renamed configuration formatter-compatible', async () => {
+    const directory = await createSetupFixture()
+    const agentInstructions = await readFile(
+      join(directory, 'AGENTS.md'),
+      'utf-8',
+    )
     const child = spawn(process.execPath, ['scripts/setup.ts'], {
       cwd: directory,
       env: withoutCloudflareCredentials(process.env),
@@ -120,9 +270,34 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
     })
     const stderr: Buffer[] = []
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
-    child.stdin.end('consumer-app\nn\nn\n')
+    const answers = [
+      { prompt: 'Enter your app name', value: 'consumer-app' },
+      { prompt: 'Configure production Turso now?', value: 'n' },
+      { prompt: 'Configure Cloudflare deployment now?', value: 'n' },
+    ]
+    let transcript = ''
+    let answerIndex = 0
+    let answerTimer: ReturnType<typeof setTimeout> | undefined
+    child.stdout.on('data', (chunk: Buffer) => {
+      transcript += chunk.toString()
+      const answer = answers[answerIndex]
+      if (!answer || !transcript.includes(answer.prompt)) return
+      answerIndex += 1
+      answerTimer = setTimeout(() => {
+        if (child.stdin.destroyed) return
+        if (answerIndex === answers.length) {
+          child.stdin.end(`${answer.value}\n`)
+        } else {
+          child.stdin.write(`${answer.value}\n`)
+        }
+      }, 50)
+    })
 
-    const [exitCode] = (await once(child, 'exit')) as [number | null]
+    const [exitCode] = (await once(child, 'close')) as [number | null]
+    clearTimeout(answerTimer)
+    expect(Buffer.concat(stderr).toString()).toBe('')
+    expect(exitCode).toBe(0)
+    expect(answerIndex).toBe(answers.length)
     const ctaConfig = await readFile(join(directory, '.cta.json'), 'utf-8')
     const worktreeInclude = await readFile(
       join(directory, '.worktreeinclude'),
@@ -136,13 +311,17 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
       scripts: Array<Record<string, unknown>>
     }
 
-    expect(Buffer.concat(stderr).toString()).toBe('')
-    expect(exitCode).toBe(0)
     expect(ctaConfig).toContain('"projectName": "consumer-app"')
     expect(
       await readFile(join(directory, 'cloudflare.config.ts'), 'utf-8'),
     ).toContain("name: 'consumer-app'")
     expect(ctaConfig).toContain('"chosenAddOns": ["cloudflare"]')
+    expect(await readFile(join(directory, 'AGENTS.md'), 'utf-8')).toBe(
+      agentInstructions,
+    )
+    expect(
+      (await lstat(join(directory, '.agents/skills/effect-ts'))).isDirectory(),
+    ).toBe(true)
     expect(worktreeInclude).toBe(
       '/.dev.vars\n/.cloudflare.json\n/.dev.vars.production\n',
     )
@@ -151,7 +330,7 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
       $schema: 'https://t3.codes/schema/t3.json',
       scripts: [
         {
-          name: 'Setup Shadow Worktree',
+          name: 'Setup consumer-app Worktree',
           command: "node 'scripts/setup-worktree.mjs'",
           icon: 'configure',
           runOnWorktreeCreate: true,
@@ -160,7 +339,7 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
     })
   })
 
-  test('updates the repository root include file for a monorepo', async () => {
+  test('registers monorepo instructions, discoverable skills and worktree setup idempotently', async () => {
     const repository = await createTemporaryDirectory()
     const directory = await createSetupFixture(
       join(repository, 'order-management'),
@@ -170,6 +349,9 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
       encoding: 'utf-8',
     })
     await writeFile(join(repository, '.worktreeinclude'), '/existing/.env\n')
+    const existingInstructions =
+      '# Repository instructions\n\nPreserve existing app conventions.\n'
+    await writeFile(join(repository, 'AGENTS.md'), existingInstructions)
     await writeFile(
       join(repository, 't3.json'),
       `${JSON.stringify(
@@ -199,19 +381,9 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
     expect(gitInit.status).toBe(0)
 
     for (let run = 0; run < 2; run += 1) {
-      const child = spawn(
-        process.execPath,
-        ['scripts/setup.ts', 'consumer-app'],
-        {
-          cwd: directory,
-          env: withoutCloudflareCredentials(process.env),
-          stdio: ['pipe', 'pipe', 'pipe'],
-        },
-      )
-      child.stdin.end('n\nn\n')
-
-      const [exitCode] = (await once(child, 'exit')) as [number | null]
-      expect(exitCode).toBe(0)
+      const result = await runLocalSetup(directory)
+      expect(result.stderr).toBe('')
+      expect(result.exitCode).toBe(0)
     }
 
     const worktreeInclude = await readFile(
@@ -240,11 +412,11 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
     })
     expect(
       t3Project.scripts.filter(
-        (script) => script.name === 'Setup Shadow Worktree',
+        (script) => script.name === 'Setup order-management Worktree',
       ),
     ).toEqual([
       {
-        name: 'Setup Shadow Worktree',
+        name: 'Setup order-management Worktree',
         command: "node 'order-management/scripts/setup-worktree.mjs'",
         icon: 'configure',
         runOnWorktreeCreate: true,
@@ -255,9 +427,158 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
         (script) => script.name === 'Apply .worktreeinclude',
       ),
     ).toBe(false)
+
+    const rootInstructions = await readFile(
+      join(repository, 'AGENTS.md'),
+      'utf-8',
+    )
+    expect(rootInstructions.startsWith(existingInstructions)).toBe(true)
+    expect(
+      rootInstructions.match(/order-management\/AGENTS\.md/g),
+    ).toHaveLength(1)
+    expect(rootInstructions).toContain('order-management/.agents/skills/')
+    for (const skill of ['effect-ts', 'shadcn']) {
+      const source = join(directory, '.agents/skills', skill)
+      const target = join(repository, '.agents/skills', skill)
+      expect((await lstat(target)).isSymbolicLink()).toBe(true)
+      expect(await readlink(target)).toBe(
+        `../../order-management/.agents/skills/${skill}`,
+      )
+      expect(await readFile(join(target, 'SKILL.md'), 'utf-8')).toBe(
+        await readFile(join(source, 'SKILL.md'), 'utf-8'),
+      )
+    }
+    expect(
+      await readFile(
+        join(repository, '.agents/skills/shadcn/rules/forms.md'),
+        'utf-8',
+      ),
+    ).toBe(
+      await readFile(
+        join(directory, '.agents/skills/shadcn/rules/forms.md'),
+        'utf-8',
+      ),
+    )
   })
 
-  test('sets up a worktree without an additional CLI', async () => {
+  test('keeps separate worktree actions for multiple apps and migrates the matching legacy action', async () => {
+    const repository = await createTemporaryDirectory()
+    const paths = ['apps/admin', 'apps/customer portal']
+    const directories = await Promise.all(
+      paths.map((path) => createSetupFixture(join(repository, path))),
+    )
+    expect(
+      spawnSync('git', ['init', '--quiet'], { cwd: repository }).status,
+    ).toBe(0)
+    await writeFile(
+      join(repository, 't3.json'),
+      JSON.stringify({
+        scripts: [
+          {
+            name: 'Apply .worktreeinclude',
+            command: 'git worktreeinclude apply',
+            icon: 'configure',
+            runOnWorktreeCreate: true,
+          },
+          {
+            name: 'Setup Shadow Worktree',
+            command: "node 'apps/admin/scripts/setup-worktree.mjs'",
+            icon: 'configure',
+            runOnWorktreeCreate: true,
+            async: true,
+          },
+        ],
+      }),
+    )
+
+    for (const directory of [...directories, directories[0]]) {
+      expect((await runLocalSetup(directory)).exitCode).toBe(0)
+    }
+
+    const project = JSON.parse(
+      await readFile(join(repository, 't3.json'), 'utf-8'),
+    ) as {
+      scripts: Array<Record<string, unknown>>
+    }
+    expect(project.scripts).toHaveLength(2)
+    expect(project.scripts).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'Setup apps/admin Worktree',
+          command: "node 'apps/admin/scripts/setup-worktree.mjs'",
+          icon: 'configure',
+          runOnWorktreeCreate: true,
+          async: true,
+        },
+        {
+          name: 'Setup apps/customer portal Worktree',
+          command: "node 'apps/customer portal/scripts/setup-worktree.mjs'",
+          icon: 'configure',
+          runOnWorktreeCreate: true,
+        },
+      ]),
+    )
+    const instructions = await readFile(join(repository, 'AGENTS.md'), 'utf-8')
+    for (const path of paths) {
+      expect(instructions.split(`${path}/AGENTS.md`)).toHaveLength(2)
+    }
+    expect(await readlink(join(repository, '.agents/skills/effect-ts'))).toBe(
+      '../../apps/admin/.agents/skills/effect-ts',
+    )
+  })
+
+  test.each(['directory', 'file', 'symlink'])(
+    'preserves an existing root skill %s and reports the conflict',
+    async (kind) => {
+      const repository = await createTemporaryDirectory()
+      const directory = await createSetupFixture(
+        join(repository, 'task-management'),
+      )
+      expect(
+        spawnSync('git', ['init', '--quiet'], { cwd: repository }).status,
+      ).toBe(0)
+      const target = join(repository, '.agents/skills/effect-ts')
+      await mkdir(dirname(target), { recursive: true })
+      if (kind === 'directory') {
+        await mkdir(target)
+        await writeFile(join(target, 'SKILL.md'), 'Existing skill\n')
+      } else if (kind === 'file') {
+        await writeFile(target, 'Existing skill\n')
+      } else {
+        await symlink('../../missing-skill', target, 'dir')
+      }
+
+      const result = await runLocalSetup(directory)
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toContain('.agents/skills/effect-ts')
+      expect(result.stderr).toContain(
+        'task-management/.agents/skills/effect-ts',
+      )
+      if (kind === 'symlink') {
+        expect(await readlink(target)).toBe('../../missing-skill')
+      } else {
+        expect(
+          await readFile(
+            kind === 'file' ? target : join(target, 'SKILL.md'),
+            'utf-8',
+          ),
+        ).toBe('Existing skill\n')
+      }
+      expect(
+        await readFile(
+          join(repository, '.agents/skills/shadcn/SKILL.md'),
+          'utf-8',
+        ),
+      ).toBe(
+        await readFile(
+          join(directory, '.agents/skills/shadcn/SKILL.md'),
+          'utf-8',
+        ),
+      )
+    },
+  )
+
+  test('sets up a Git worktree with discoverable skills and without an additional CLI', async () => {
     const repository = await createTemporaryDirectory()
     const directory = await createSetupFixture(
       join(repository, 'order-management'),
@@ -287,6 +608,24 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
     const [setupExitCode] = (await once(setup, 'exit')) as [number | null]
     expect(setupExitCode).toBe(0)
 
+    for (const args of [
+      ['add', '.'],
+      [
+        '-c',
+        'user.name=Shadow Setup Test',
+        '-c',
+        'user.email=shadow-setup@example.invalid',
+        'commit',
+        '--quiet',
+        '-m',
+        'Initialize app',
+      ],
+    ]) {
+      expect(
+        spawnSync('git', args, { cwd: repository, encoding: 'utf-8' }).status,
+      ).toBe(0)
+    }
+
     await writeFile(
       join(directory, '.cloudflare.json'),
       '{"profile":"local"}\n',
@@ -300,17 +639,27 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
 
     const worktree = await createTemporaryDirectory()
     const worktreeApp = join(worktree, 'order-management')
-    await mkdir(join(worktreeApp, 'scripts'), { recursive: true })
-    for (const file of [
-      'package.json',
-      'scripts/apply-worktreeinclude.mjs',
-      'scripts/prepare-effect.mjs',
-      'scripts/setup-worktree.mjs',
-    ]) {
-      const target = join(worktreeApp, file)
-      await mkdir(dirname(target), { recursive: true })
-      await copyFile(join(directory, file), target)
-    }
+    const addWorktree = spawnSync(
+      'git',
+      ['worktree', 'add', '--quiet', '--detach', worktree, 'HEAD'],
+      {
+        cwd: repository,
+        encoding: 'utf-8',
+      },
+    )
+    expect(addWorktree.stderr).toBe('')
+    expect(addWorktree.status).toBe(0)
+    expect(
+      await readFile(
+        join(worktree, '.agents/skills/effect-ts/SKILL.md'),
+        'utf-8',
+      ),
+    ).toBe(
+      await readFile(
+        join(worktreeApp, '.agents/skills/effect-ts/SKILL.md'),
+        'utf-8',
+      ),
+    )
     await writeFile(join(worktreeApp, '.dev.vars'), 'keep existing\n')
 
     const effectRepository = await createEffectSourceRepository()
@@ -321,12 +670,12 @@ if (args[0] === 'group') console.log('NAME PRIMARY LOCATIONS')
     )
 
     const t3Project = JSON.parse(
-      await readFile(join(repository, 't3.json'), 'utf-8'),
+      await readFile(join(worktree, 't3.json'), 'utf-8'),
     ) as {
       scripts: Array<{ name: string; command: string }>
     }
     const command = t3Project.scripts.find(
-      (script) => script.name === 'Setup Shadow Worktree',
+      (script) => script.name === 'Setup order-management Worktree',
     )?.command
 
     expect(command).toBe("node 'order-management/scripts/setup-worktree.mjs'")
@@ -461,8 +810,18 @@ async function createSetupFixture(targetDirectory?: string): Promise<string> {
     join(directory, 'node_modules/effect'),
     'dir',
   )
+  await mkdir(join(directory, 'node_modules/@clack'), { recursive: true })
+  await symlink(
+    join(ROOT, 'node_modules/@clack/prompts'),
+    join(directory, 'node_modules/@clack/prompts'),
+    'dir',
+  )
 
   const files = [
+    'AGENTS.md',
+    '.agents/skills/effect-ts/SKILL.md',
+    '.agents/skills/shadcn/SKILL.md',
+    '.agents/skills/shadcn/rules/forms.md',
     '.gitignore',
     '.cta.json',
     'README.md',
@@ -483,8 +842,76 @@ async function createSetupFixture(targetDirectory?: string): Promise<string> {
     await mkdir(dirname(target), { recursive: true })
     await copyFile(join(ROOT, file), target)
   }
-
   return directory
+}
+
+async function runLocalSetup(
+  directory: string,
+): Promise<{ exitCode: number | null; stderr: string }> {
+  const child = spawn(process.execPath, ['scripts/setup.ts', 'consumer-app'], {
+    cwd: directory,
+    env: withoutCloudflareCredentials(process.env),
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+  const stderr: Buffer[] = []
+  child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
+  child.stdout.resume()
+  child.stdin.end('n\nn\n')
+  const [exitCode] = (await once(child, 'close')) as [number | null]
+  return { exitCode, stderr: Buffer.concat(stderr).toString() }
+}
+
+async function runInteractiveSetup(
+  directory: string,
+  answers: Array<{ prompt: string; value: string }>,
+  environment: NodeJS.ProcessEnv,
+): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
+  const terminalPath = join(directory, 'terminal.mjs')
+  await writeFile(
+    terminalPath,
+    `process.stdin.isTTY = true
+process.stdin.setRawMode = function (raw) { this.isRaw = raw; return this }
+process.stdout.isTTY = true
+process.stdout.columns = 120
+process.stdout.rows = 40
+`,
+  )
+  const child = spawn(
+    process.execPath,
+    ['--import', pathToFileURL(terminalPath).href, 'scripts/setup.ts'],
+    {
+      cwd: directory,
+      env: withoutCloudflareCredentials({
+        ...process.env,
+        ...environment,
+        TERM: 'xterm-256color',
+        CI: '',
+        FORCE_COLOR: '0',
+      }),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    },
+  )
+  const stderr: Buffer[] = []
+  let stdout = ''
+  let answerIndex = 0
+  let answerTimer: ReturnType<typeof setTimeout> | undefined
+  child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdout += chunk.toString()
+    const answer = answers[answerIndex]
+    if (!answer || !stdout.includes(answer.prompt)) return
+    answerIndex += 1
+    answerTimer = setTimeout(() => {
+      if (child.stdin.destroyed) return
+      if (answerIndex === answers.length) child.stdin.end(answer.value)
+      else child.stdin.write(answer.value)
+    }, 30)
+  })
+
+  const [exitCode] = (await once(child, 'close')) as [number | null]
+  clearTimeout(answerTimer)
+  expect(answerIndex).toBe(answers.length)
+  return { exitCode, stdout, stderr: Buffer.concat(stderr).toString() }
 }
 
 async function createEffectSourceRepository(): Promise<string> {

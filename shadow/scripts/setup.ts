@@ -1,6 +1,17 @@
-import { existsSync, readFileSync, readSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { basename, join, relative, resolve } from 'node:path'
+import { basename, dirname, join, relative, resolve } from 'node:path'
+import { createInterface } from 'node:readline'
+import * as prompts from '@clack/prompts'
 import { pinProductionDatabase } from './production-database.ts'
 import {
   findCloudflareCredentialEnvironmentVariable,
@@ -30,7 +41,6 @@ const WORKTREE_INCLUDE_FILE_NAMES = [
 const WORKTREE_SETUP_SCRIPT_PATH = join(ROOT, 'scripts', 'setup-worktree.mjs')
 const EFFECT_SOURCE_IGNORE_PATTERN = '/.repos/effect/'
 const T3_SCHEMA_URL = 'https://t3.codes/schema/t3.json'
-const T3_WORKTREE_SETUP_SCRIPT_NAME = 'Setup Shadow Worktree'
 const LEGACY_T3_WORKTREE_SETUP_SCRIPT_NAME = 'Apply .worktreeinclude'
 const DEFAULT_TURSO_LOCATION = 'aws-ap-northeast-1'
 
@@ -60,56 +70,94 @@ type CloudflareConfiguration = {
   account: CloudflareAccount
 }
 
+class SetupCancelled extends Error {}
+
 const args = process.argv.slice(2).filter((arg) => !arg.endsWith('setup.ts'))
 const cliName = args[0]?.trim()
 const defaultAppName = toKebabCase(basename(ROOT)) || 'shadow'
+const interactive = Boolean(
+  process.stdin.isTTY && process.stdout.isTTY && process.env.TERM !== 'dumb',
+)
+const promptInput = interactive
+  ? undefined
+  : createInterface({
+      input: process.stdin,
+      terminal: false,
+      crlfDelay: Infinity,
+    })
+const promptLines = promptInput?.[Symbol.asyncIterator]()
+promptInput?.pause()
+const log = interactive
+  ? prompts.log
+  : {
+      info: console.log,
+      success: console.log,
+      step: console.log,
+      warn: console.warn,
+      error: console.error,
+    }
 
-const appNameInput = cliName ?? ask(`Enter your app name (${defaultAppName}):`)
-const appName = normalizeAppName(appNameInput, defaultAppName)
+try {
+  if (interactive) prompts.intro('Shadow · Project setup')
+  const appNameInput =
+    cliName ?? (await ask('Enter your app name', defaultAppName))
+  const appName = normalizeAppName(appNameInput, defaultAppName)
 
-if (!appName) {
-  console.error('App name is required.')
-  process.exit(1)
-}
+  if (!appName) {
+    log.error('App name is required.')
+    process.exit(1)
+  }
 
-renameProject(appName)
-ensureSetupScript()
-updateReadme(appName)
-configureLocalTurso()
-const repositoryRoot = findRepositoryRoot()
-configureWorktreeIncludes(repositoryRoot)
-configureEffectSourceIgnore(repositoryRoot)
-configureT3Project(repositoryRoot)
+  renameProject(appName)
+  ensureSetupScript()
+  updateReadme(appName)
+  configureLocalTurso()
+  const repositoryRoot = findRepositoryRoot()
+  configureWorktreeIncludes(repositoryRoot)
+  configureEffectSourceIgnore(repositoryRoot)
+  configureProjectAgentContext(repositoryRoot)
+  configureT3Project(repositoryRoot, appName)
+  log.step('Local project, skills and worktree configuration saved.')
 
-const productionTursoConfigured = configureProductionTurso(appName)
-const cloudflareConfiguration = configureCloudflareDeployment()
+  const productionTursoConfigured = await configureProductionTurso(appName)
+  const cloudflareConfiguration = await configureCloudflareDeployment()
 
-console.log(`✨ Project configured as "${appName}"`)
-console.log('✨ Local Turso dev server variables have been set.')
-console.log('✨ Worktree local files have been registered.')
-console.log('✨ T3 Code worktree setup has been registered.')
-if (productionTursoConfigured) {
-  console.log('✨ Production Turso environment variables have been set.')
-  console.log(
-    '✨ Production database hostname is pinned in turso.production.json.',
-  )
-} else {
-  console.log(
-    'ℹ️ Production Turso setup was skipped. Configure .dev.vars.production before deploying and turso.production.json before migrating.',
-  )
-}
-if (cloudflareConfiguration) {
-  const { profile, account } = cloudflareConfiguration
-  console.log(
-    `✨ Cloudflare profile "${profile}" is pinned to ${account.name} (${account.id}).`,
-  )
-  console.log(
-    'ℹ️ Cloudflare resources and API tokens were not created. Add bindings during development, then run `pnpm run cloudflare plan`.',
-  )
-} else {
-  console.log(
-    'ℹ️ Cloudflare setup was skipped; any existing deployment configuration was left unchanged.',
-  )
+  log.success('Local Turso dev server variables have been set.')
+  log.success('Worktree local files have been registered.')
+  log.success('T3 Code worktree setup has been registered.')
+  if (productionTursoConfigured) {
+    log.success('Production Turso environment variables have been set.')
+    log.success(
+      'Production database hostname is pinned in turso.production.json.',
+    )
+  } else {
+    log.info(
+      'Production Turso setup was skipped. Configure .dev.vars.production before deploying and turso.production.json before migrating.',
+    )
+  }
+  if (cloudflareConfiguration) {
+    const { profile, account } = cloudflareConfiguration
+    log.success(
+      `Cloudflare profile "${profile}" is pinned to ${account.name} (${account.id}).`,
+    )
+    log.info(
+      'Cloudflare resources and API tokens were not created. Add bindings during development, then run `pnpm run cloudflare plan`.',
+    )
+  } else {
+    log.info(
+      'Cloudflare setup was skipped; any existing deployment configuration was left unchanged.',
+    )
+  }
+  const completion = `Project configured as "${appName}"`
+  if (interactive) prompts.outro(completion)
+  else log.success(completion)
+} catch (error) {
+  if (!(error instanceof SetupCancelled)) throw error
+  if (interactive) prompts.cancel(error.message)
+  else log.error(error.message)
+  process.exitCode = 1
+} finally {
+  promptInput?.close()
 }
 
 function configureLocalTurso(): void {
@@ -149,17 +197,83 @@ function withFinalNewline(content: string): string {
     : `${content}\n`
 }
 
-function configureT3Project(repositoryRoot: string): void {
+function configureProjectAgentContext(repositoryRoot: string): void {
+  if (repositoryRoot === ROOT) return
+  configureRootSkills(repositoryRoot)
+  configureRootAgentInstructions(repositoryRoot)
+}
+
+function configureRootSkills(repositoryRoot: string): void {
+  const skillDirectory = join(ROOT, '.agents', 'skills')
+  if (!existsSync(skillDirectory)) return
+  const rootSkillDirectory = join(repositoryRoot, '.agents', 'skills')
+  mkdirSync(rootSkillDirectory, { recursive: true })
+  const skills = readdirSync(skillDirectory, { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory(),
+  )
+  for (const entry of skills) {
+    const source = join(skillDirectory, entry.name)
+    if (existsSync(join(source, 'SKILL.md'))) {
+      linkRootSkill(
+        repositoryRoot,
+        source,
+        join(rootSkillDirectory, entry.name),
+      )
+    }
+  }
+}
+
+function linkRootSkill(
+  repositoryRoot: string,
+  source: string,
+  target: string,
+): void {
+  const existing = lstatSync(target, { throwIfNoEntry: false })
+  if (existing) {
+    if (
+      !existing.isSymbolicLink() ||
+      resolve(dirname(target), readlinkSync(target)) !== source
+    ) {
+      log.warn(
+        `Existing project skill "${relative(repositoryRoot, target)}" was preserved. Use "${relative(repositoryRoot, source)}" for this application.`,
+      )
+    }
+    return
+  }
+  symlinkSync(relative(dirname(target), source), target, 'dir')
+}
+
+function configureRootAgentInstructions(repositoryRoot: string): void {
+  if (!existsSync(join(ROOT, 'AGENTS.md'))) return
+  const filePath = join(repositoryRoot, 'AGENTS.md')
+  const appDirectory = relative(repositoryRoot, ROOT).replaceAll('\\', '/')
+  const instruction = `- Before working in \`${appDirectory}/\`, read \`${appDirectory}/AGENTS.md\` and follow its project skill instructions in \`${appDirectory}/.agents/skills/\`. Run application commands from \`${appDirectory}/\`.`
+  const content = existsSync(filePath)
+    ? readFileSync(filePath, 'utf-8')
+    : '# Application instructions\n'
+  if (content.includes(instruction)) return
+  writeFileSync(filePath, `${withFinalNewline(content)}\n${instruction}\n`)
+}
+
+function configureT3Project(repositoryRoot: string, appName: string): void {
   const t3ProjectPath = join(repositoryRoot, 't3.json')
   const configuration = readT3Project(t3ProjectPath)
   const scripts = readT3Scripts(configuration)
-  const worktreeSetupScript = createT3WorktreeSetupScript(repositoryRoot)
-  const scriptIndex = scripts.findIndex(
-    (script) =>
-      script.name === worktreeSetupScript.name ||
-      script.name === LEGACY_T3_WORKTREE_SETUP_SCRIPT_NAME ||
-      script.command === worktreeSetupScript.command,
+  const worktreeSetupScript = createT3WorktreeSetupScript(
+    repositoryRoot,
+    appName,
   )
+  const matchingScriptIndex = scripts.findIndex(
+    (script) => script.command === worktreeSetupScript.command,
+  )
+  const scriptIndex =
+    matchingScriptIndex >= 0
+      ? matchingScriptIndex
+      : scripts.findIndex(
+          (script) =>
+            script.name === LEGACY_T3_WORKTREE_SETUP_SCRIPT_NAME &&
+            script.command === 'git worktreeinclude apply',
+        )
 
   if (scriptIndex === -1) {
     scripts.push(worktreeSetupScript)
@@ -190,14 +304,16 @@ function configureEffectSourceIgnore(repositoryRoot: string): void {
 
 function createT3WorktreeSetupScript(
   repositoryRoot: string,
+  appName: string,
 ): Record<string, unknown> {
+  const appDirectory = relative(repositoryRoot, ROOT).replaceAll('\\', '/')
   const scriptPath = relative(
     repositoryRoot,
     WORKTREE_SETUP_SCRIPT_PATH,
   ).replaceAll('\\', '/')
 
   return {
-    name: T3_WORKTREE_SETUP_SCRIPT_NAME,
+    name: `Setup ${appDirectory || appName} Worktree`,
     command: `node ${quoteShellArgument(scriptPath)}`,
     icon: 'configure',
     runOnWorktreeCreate: true,
@@ -286,71 +402,69 @@ function isActivePattern(
   }, false)
 }
 
-function configureProductionTurso(projectName: string): boolean {
-  if (!confirm('Configure production Turso now? (y/N):', false)) {
+async function configureProductionTurso(projectName: string): Promise<boolean> {
+  if (!(await confirm('Configure production Turso now?', false))) {
     return false
   }
 
-  if (!canConfigureTursoAutomatically()) {
+  if (!(await canConfigureTursoAutomatically())) {
     return configureTursoManually()
   }
 
-  const shouldCreateDatabase = confirm(
-    'Create a new Turso database now? (Y/n):',
+  const shouldCreateDatabase = await confirm(
+    'Create a new Turso database now?',
     true,
   )
   const defaultDatabaseName = toKebabCase(projectName) || 'shadow'
-  const databaseName = askRequired(
-    `Turso database name (${defaultDatabaseName}):`,
+  const databaseName = await askRequired(
+    'Turso database name',
     defaultDatabaseName,
   )
 
   return configureTursoWithCli(databaseName, shouldCreateDatabase)
 }
 
-function canConfigureTursoAutomatically(): boolean {
+async function canConfigureTursoAutomatically(): Promise<boolean> {
   if (hasCommand('turso')) {
     return ensureTursoLogin()
   }
 
-  console.log('ℹ️ Turso CLI was not found. Falling back to manual env input.')
+  log.info('Turso CLI was not found. Falling back to manual env input.')
   return false
 }
 
-function configureTursoWithCli(
+async function configureTursoWithCli(
   databaseName: string,
   shouldCreateDatabase: boolean,
-): boolean {
+): Promise<boolean> {
   try {
-    createTursoDatabase(databaseName, shouldCreateDatabase)
+    await createTursoDatabase(databaseName, shouldCreateDatabase)
     writeTursoCredentials(getTursoCredentials(databaseName))
 
     return true
   } catch (error) {
+    if (error instanceof SetupCancelled) throw error
     const message =
       error instanceof Error ? error.message : 'Turso setup failed.'
-    console.error(message)
+    log.error(message)
     return configureTursoManually()
   }
 }
 
-function createTursoDatabase(
+async function createTursoDatabase(
   databaseName: string,
   shouldCreateDatabase: boolean,
-): void {
+): Promise<void> {
   if (!shouldCreateDatabase) {
     return
   }
 
-  const groupName = selectTursoGroup()
+  const groupName = await selectTursoGroup()
   const groupArgs = groupName
     ? ['--group', groupName]
     : [
         '--location',
-        askRequired(
-          `Turso location (${DEFAULT_TURSO_LOCATION}):`,
-          DEFAULT_TURSO_LOCATION,
-        ),
+        await askRequired('Turso location', DEFAULT_TURSO_LOCATION),
       ]
   runTursoCommand(
     ['db', 'create', databaseName, ...groupArgs, '--wait'],
@@ -382,20 +496,20 @@ function writeTursoCredentials({
   writeTursoEnv(DEV_VARS_PRODUCTION_PATH, databaseUrl, authToken)
 }
 
-function configureTursoManually(): boolean {
-  if (!confirm('Enter Turso URL and token manually? (Y/n):', true)) {
+async function configureTursoManually(): Promise<boolean> {
+  if (!(await confirm('Enter Turso URL and token manually?', true))) {
     return false
   }
 
-  const databaseUrl = askRequired('TURSO_DATABASE_URL:', '')
-  const authToken = askRequired('TURSO_AUTH_TOKEN:', '')
+  const databaseUrl = await askRequired('TURSO_DATABASE_URL', '')
+  const authToken = await askRequired('TURSO_AUTH_TOKEN', '', true)
 
   writeTursoCredentials({ databaseUrl, authToken })
 
   return true
 }
 
-function selectTursoGroup(): string | null {
+async function selectTursoGroup(): Promise<string | null> {
   try {
     const groups = getTursoGroups()
 
@@ -403,28 +517,61 @@ function selectTursoGroup(): string | null {
       return askOptionalGroupName()
     }
 
-    console.log('Choose a Japan group to match the Worker placement in Tokyo:')
+    if (interactive) return selectTursoGroupInteractively(groups)
+
+    log.info('Choose a Japan group to match the Worker placement in Tokyo:')
     groups.forEach((group, index) => {
-      console.log(`${index + 1}. ${group}`)
+      log.info(`${index + 1}. ${group}`)
     })
 
     const manualOption = groups.length + 1
-    console.log(`${manualOption}. Enter group manually`)
+    log.info(`${manualOption}. Enter group manually`)
 
     return selectGroupFromChoices(groups, manualOption)
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Failed to fetch Turso groups.'
-    console.log(`ℹ️ ${message}`)
+    log.info(setupErrorMessage(error, 'Failed to fetch Turso groups.'))
     return askOptionalGroupName()
   }
 }
 
-function selectGroupFromChoices(
+function setupErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
+async function selectTursoGroupInteractively(
+  groups: string[],
+): Promise<string | null> {
+  const locationSelection: GroupSelection = { kind: 'skip' }
+  const selection = unwrapPrompt(
+    await prompts.select<GroupSelection>({
+      message: 'Select a Turso group (choose Japan to match the Tokyo Worker)',
+      initialValue: locationSelection,
+      options: [
+        ...groups.map((group) => ({
+          value: { kind: 'group', value: group } satisfies GroupSelection,
+          label: group,
+        })),
+        { value: { kind: 'manual' }, label: 'Enter group manually' },
+        {
+          value: locationSelection,
+          label: 'Choose a location instead',
+          hint: 'Tokyo is the default',
+        },
+      ],
+    }),
+  )
+  if (selection.kind === 'group') return selection.value
+  if (selection.kind === 'manual') {
+    return askRequired('Enter Turso group name', '')
+  }
+  return null
+}
+
+async function selectGroupFromChoices(
   groups: string[],
   manualOption: number,
-): string | null {
-  const answer = ask(
+): Promise<string | null> {
+  const answer = await ask(
     `Select a Turso group [1-${manualOption}] or type a group name directly (Enter to skip):`,
   )
   const selection = parseGroupSelection(answer, groups, manualOption)
@@ -439,7 +586,7 @@ function selectGroupFromChoices(
     return askRequired('Enter Turso group name:', '')
   }
 
-  console.log('Please choose one of the listed options or type a group name.')
+  log.info('Please choose one of the listed options or type a group name.')
   return selectGroupFromChoices(groups, manualOption)
 }
 
@@ -475,8 +622,8 @@ function parseGroupIndex(
   return { kind: 'invalid' }
 }
 
-function askOptionalGroupName(): string | null {
-  const groupName = ask(
+async function askOptionalGroupName(): Promise<string | null> {
+  const groupName = await ask(
     'Enter Turso group name (leave blank to choose a location; Tokyo is the default):',
   )
 
@@ -488,7 +635,8 @@ function getTursoGroups(): string[] {
     ['group', 'list'],
     'Failed to list Turso groups.',
   )
-  console.log(output)
+  if (interactive) prompts.note(output, 'Turso groups and locations')
+  else log.info(output)
 
   const groups = output
     .split(/\r?\n/)
@@ -502,27 +650,27 @@ function getTursoGroups(): string[] {
   return [...new Set(groups)]
 }
 
-function ensureTursoLogin(): boolean {
+async function ensureTursoLogin(): Promise<boolean> {
   if (isTursoAuthenticated()) {
     return true
   }
 
-  console.log('ℹ️ You are not logged in to Turso.')
+  log.info('You are not logged in to Turso.')
 
-  if (!requestTursoLogin()) {
+  if (!(await requestTursoLogin())) {
     return false
   }
 
   if (!isTursoAuthenticated()) {
-    console.error('Turso login could not be verified.')
+    log.error('Turso login could not be verified.')
     return false
   }
 
   return true
 }
 
-function requestTursoLogin(): boolean {
-  if (!confirm('Run `turso auth login` now? (Y/n):', true)) {
+async function requestTursoLogin(): Promise<boolean> {
+  if (!(await confirm('Run `turso auth login` now?', true))) {
     return false
   }
   return runTursoLogin()
@@ -547,7 +695,7 @@ function runTursoLogin(): boolean {
     return true
   }
 
-  console.error('Failed to log in to Turso.')
+  log.error('Failed to log in to Turso.')
   return false
 }
 
@@ -584,8 +732,8 @@ function writeTursoEnv(
   writeFileSync(filePath, `${updated}\n`)
 }
 
-function configureCloudflareDeployment(): CloudflareConfiguration | null {
-  if (!confirm('Configure Cloudflare deployment now? (y/N):', false)) {
+async function configureCloudflareDeployment(): Promise<CloudflareConfiguration | null> {
+  if (!(await confirm('Configure Cloudflare deployment now?', false))) {
     return null
   }
 
@@ -601,7 +749,7 @@ function prepareCfCommand(): string | null {
   const credentialEnvironmentVariable =
     findCloudflareCredentialEnvironmentVariable(process.env)
   if (credentialEnvironmentVariable) {
-    console.error(
+    log.error(
       `Unset ${credentialEnvironmentVariable} before configuring a named Cloudflare profile.`,
     )
     return null
@@ -609,7 +757,7 @@ function prepareCfCommand(): string | null {
 
   const cfCommand = resolveCfCommand()
   if (!cfCommand) {
-    console.error(
+    log.error(
       'cf was not found. Run `pnpm install`, then run `pnpm run setup` again.',
     )
     return null
@@ -618,10 +766,10 @@ function prepareCfCommand(): string | null {
   return cfCommand
 }
 
-function configureCloudflareWithCf(
+async function configureCloudflareWithCf(
   cfCommand: string,
-): CloudflareConfiguration | null {
-  const configuration = resolveCloudflareConfiguration(cfCommand)
+): Promise<CloudflareConfiguration | null> {
+  const configuration = await resolveCloudflareConfiguration(cfCommand)
   if (!configuration) {
     return null
   }
@@ -630,11 +778,11 @@ function configureCloudflareWithCf(
   return configuration
 }
 
-function resolveCloudflareConfiguration(
+async function resolveCloudflareConfiguration(
   cfCommand: string,
-): CloudflareConfiguration | null {
+): Promise<CloudflareConfiguration | null> {
   const currentConfiguration = readStoredCloudflareConfiguration()
-  const profile = resolveCloudflareProfile(
+  const profile = await resolveCloudflareProfile(
     cfCommand,
     currentConfiguration?.profile,
   )
@@ -649,25 +797,25 @@ function resolveCloudflareConfiguration(
   )
 }
 
-function resolveCloudflareProfile(
+async function resolveCloudflareProfile(
   cfCommand: string,
   currentProfile?: string,
-): string | null {
-  const profile = askCloudflareProfile(currentProfile)
-  return ensureCloudflareProfile(cfCommand, profile) ? profile : null
+): Promise<string | null> {
+  const profile = await askCloudflareProfile(currentProfile)
+  return (await ensureCloudflareProfile(cfCommand, profile)) ? profile : null
 }
 
-function resolveCloudflareAccount(
+async function resolveCloudflareAccount(
   cfCommand: string,
   profile: string,
   currentAccountId?: string,
-): CloudflareConfiguration | null {
-  const accounts = getCloudflareAccountsWithRecovery(cfCommand, profile)
+): Promise<CloudflareConfiguration | null> {
+  const accounts = await getCloudflareAccountsWithRecovery(cfCommand, profile)
   if (!accounts) {
     return null
   }
 
-  const account = selectCloudflareAccount(accounts, currentAccountId)
+  const account = await selectCloudflareAccount(accounts, currentAccountId)
   return { profile, account }
 }
 
@@ -688,40 +836,38 @@ function resolveCfCommand(): string | null {
   return resolveCloudflareCommand(ROOT)
 }
 
-function askCloudflareProfile(currentProfile?: string): string {
-  const profile = askRequired(
-    cloudflareProfileQuestion(currentProfile),
+async function askCloudflareProfile(currentProfile?: string): Promise<string> {
+  const profile = await askRequired(
+    'Cloudflare cf profile name',
     currentProfile || '',
   )
   if (isNamedCloudflareProfile(profile)) {
     return profile
   }
 
-  console.log(
+  log.info(
     'Use a named profile containing only letters, numbers, hyphens, or underscores.',
   )
   return askCloudflareProfile(currentProfile)
 }
 
-function cloudflareProfileQuestion(currentProfile?: string): string {
-  const suffix = currentProfile ? ` (${currentProfile})` : ''
-  return `Cloudflare cf profile name${suffix}:`
-}
-
-function ensureCloudflareProfile(cfCommand: string, profile: string): boolean {
+async function ensureCloudflareProfile(
+  cfCommand: string,
+  profile: string,
+): Promise<boolean> {
   const activation = activateCloudflareProfile(cfCommand, profile)
   if (activation.ok) {
     return true
   }
 
-  console.log(
-    `ℹ️ ${activation.detail || `Cloudflare profile "${profile}" is not available.`}`,
+  log.info(
+    `${activation.detail || `Cloudflare profile "${profile}" is not available.`}`,
   )
   if (
-    !confirm(
-      `Create or re-authenticate Cloudflare profile "${profile}" now? (Y/n):`,
+    !(await confirm(
+      `Create or re-authenticate Cloudflare profile "${profile}" now?`,
       true,
-    )
+    ))
   ) {
     return false
   }
@@ -739,7 +885,7 @@ function createAndActivateCloudflareProfile(
     stdio: 'inherit',
   })
   if (created.status !== 0) {
-    console.error(
+    log.error(
       `Failed to create or re-authenticate Cloudflare profile "${profile}".`,
     )
     return false
@@ -750,7 +896,7 @@ function createAndActivateCloudflareProfile(
     return true
   }
 
-  console.error(
+  log.error(
     retry.detail || `Failed to activate Cloudflare profile "${profile}".`,
   )
   return false
@@ -776,20 +922,20 @@ function activateCloudflareProfile(
   }
 }
 
-function getCloudflareAccountsWithRecovery(
+async function getCloudflareAccountsWithRecovery(
   cfCommand: string,
   profile: string,
-): CloudflareAccount[] | null {
+): Promise<CloudflareAccount[] | null> {
   const accounts = tryGetCloudflareAccounts(cfCommand, profile)
   if (accounts) {
     return accounts
   }
 
   if (
-    !confirm(
-      `Re-authenticate Cloudflare profile "${profile}" now? (Y/n):`,
+    !(await confirm(
+      `Re-authenticate Cloudflare profile "${profile}" now?`,
       true,
-    )
+    ))
   ) {
     return null
   }
@@ -812,7 +958,7 @@ function tryGetCloudflareAccounts(
       error instanceof Error
         ? error.message
         : 'Failed to read Cloudflare accounts.'
-    console.log(`ℹ️ ${message}`)
+    log.info(`${message}`)
     return null
   }
 }
@@ -835,22 +981,43 @@ function getCloudflareAccounts(
   return accounts
 }
 
-function selectCloudflareAccount(
+async function selectCloudflareAccount(
   accounts: CloudflareAccount[],
   currentAccountId?: string,
-): CloudflareAccount {
-  console.log('Available Cloudflare accounts:')
-  accounts.forEach((account, index) => {
-    console.log(`${index + 1}. ${account.name} (${account.id})`)
-  })
-
+): Promise<CloudflareAccount> {
   const currentIndex = accounts.findIndex(
     (account) => account.id === currentAccountId,
   )
   const defaultIndex = currentIndex >= 0 ? currentIndex + 1 : 1
 
+  if (interactive) {
+    return unwrapPrompt(
+      await prompts.select({
+        message: 'Select a Cloudflare account',
+        initialValue: accounts[defaultIndex - 1],
+        options: accounts.map((account) => ({
+          value: account,
+          label: account.name,
+          hint: account.id,
+        })),
+      }),
+    )
+  }
+
+  return selectCloudflareAccountFromInput(accounts, defaultIndex)
+}
+
+async function selectCloudflareAccountFromInput(
+  accounts: CloudflareAccount[],
+  defaultIndex: number,
+): Promise<CloudflareAccount> {
+  log.info('Available Cloudflare accounts:')
+  accounts.forEach((account, index) => {
+    log.info(`${index + 1}. ${account.name} (${account.id})`)
+  })
+
   while (true) {
-    const answer = ask(
+    const answer = await ask(
       `Select a Cloudflare account [1-${accounts.length}] (${defaultIndex}):`,
     )
     const selectedAccount = resolveCloudflareAccountSelection(
@@ -862,7 +1029,7 @@ function selectCloudflareAccount(
       return selectedAccount
     }
 
-    console.log('Choose one of the listed accounts.')
+    log.info('Choose one of the listed accounts.')
   }
 }
 
@@ -926,9 +1093,7 @@ function readStoredCloudflareConfiguration(): StoredCloudflareConfiguration | nu
 }
 
 function reportUnreadableCloudflareConfiguration(): null {
-  console.log(
-    'ℹ️ Existing .cloudflare.json could not be read and will be replaced.',
-  )
+  log.info('Existing .cloudflare.json could not be read and will be replaced.')
   return null
 }
 
@@ -1079,32 +1244,103 @@ function toKebabCase(value: string | null | undefined): string | undefined {
     .replace(/^-+|-+$/g, '')
 }
 
-function ask(question: string): string | null {
-  process.stdout.write(`${question} `)
-  const bytes: number[] = []
-  const byte = Buffer.alloc(1)
-  while (readSync(process.stdin.fd, byte, 0, 1, null) > 0) {
-    if (byte[0] === 10) break
-    bytes.push(byte[0])
-  }
-  return bytes.length ? Buffer.from(bytes).toString('utf-8').trim() : null
+function unwrapPrompt<Value>(
+  value: Value | typeof prompts.CANCEL_SYMBOL,
+): Value {
+  if (prompts.isCancel(value)) throw new SetupCancelled('Setup cancelled.')
+  return value
 }
 
-function askRequired(question: string, fallback: string): string {
+async function ask(question: string, fallback = ''): Promise<string | null> {
+  const defaultHint = fallback ? ` (${fallback}):` : ''
+  const answer = interactive
+    ? unwrapPrompt(
+        await prompts.text({
+          message: question,
+          placeholder: fallback,
+          defaultValue: fallback,
+        }),
+      )
+    : await readPlainLine(`${question}${defaultHint}`)
+  return normalizeAnswer(answer, fallback)
+}
+
+function normalizeAnswer(answer: string, fallback: string): string | null {
+  return answer.trim() || fallback || null
+}
+
+async function readPlainLine(question: string): Promise<string> {
+  if (!promptInput || !promptLines) {
+    throw new SetupCancelled('Setup input is unavailable.')
+  }
+  process.stdout.write(`${question} `)
+  promptInput.resume()
+  const line = await promptLines.next()
+  promptInput.pause()
+  if (line.done) {
+    throw new SetupCancelled('Input ended before setup completed.')
+  }
+  return line.value
+}
+
+async function askRequired(
+  question: string,
+  fallback: string,
+  secret = false,
+): Promise<string> {
+  if (interactive) {
+    return askRequiredInteractively(question, fallback, secret)
+  }
+
   while (true) {
-    const answer = ask(question)
+    const answer = await ask(question, fallback)
     if (answer) {
       return answer
     }
-    if (fallback) {
-      return fallback
-    }
-    console.log('This value is required.')
+    log.info('This value is required.')
   }
 }
 
-function confirm(question: string, defaultValue: boolean): boolean {
-  const answer = ask(question)
+async function askRequiredInteractively(
+  question: string,
+  fallback: string,
+  secret: boolean,
+): Promise<string> {
+  const options = {
+    message: question,
+    validate: (value: string | undefined) =>
+      value?.trim() || fallback ? undefined : 'This value is required.',
+  }
+  const answer = unwrapPrompt(
+    await (secret
+      ? prompts.password(options)
+      : prompts.text({
+          ...options,
+          placeholder: fallback,
+          defaultValue: fallback,
+        })),
+  )
+  return answer.trim() || fallback
+}
+
+async function confirm(
+  question: string,
+  defaultValue: boolean,
+): Promise<boolean> {
+  if (interactive) {
+    return unwrapPrompt(
+      await prompts.confirm({ message: question, initialValue: defaultValue }),
+    )
+  }
+  const hint = defaultValue ? 'Y/n' : 'y/N'
+  return confirmFromInput(`${question} (${hint}):`, defaultValue)
+}
+
+async function confirmFromInput(
+  question: string,
+  defaultValue: boolean,
+): Promise<boolean> {
+  const answer = await ask(question)
 
   if (!answer) {
     return defaultValue
@@ -1118,8 +1354,8 @@ function confirm(question: string, defaultValue: boolean): boolean {
     return false
   }
 
-  console.log('Please answer with y or n.')
-  return confirm(question, defaultValue)
+  log.info('Please answer with y or n.')
+  return confirmFromInput(question, defaultValue)
 }
 
 function isAuthenticatedCloudflareIdentity(value: unknown): boolean {
