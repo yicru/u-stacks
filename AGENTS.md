@@ -1,8 +1,5 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-03-09
-**Commit:** cebccf8
-**Branch:** main
 
 ## OVERVIEW
 
